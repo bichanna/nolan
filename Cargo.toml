@@ -5,7 +5,6 @@ edition = "2021"
 repository = "https://github.com/bichanna/termess"
 authors = ["Nobuharu Shimazu <nobu.bichanna@gmail.com>"]
 license = "MIT"
-license-file = "LICENSE"
 
 [dependencies]
 
