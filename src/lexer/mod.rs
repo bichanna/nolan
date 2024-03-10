@@ -1,13 +1,12 @@
 pub mod error;
 
-use logos::{skip, Lexer, Logos, Skip};
+use logos::{skip, Lexer, Logos};
 use snailquote::{unescape, UnescapeError};
 
 use crate::lexer::error::LexError;
 
-fn newline_callback(lex: &mut Lexer<Token>) -> Skip {
+fn newline_callback(lex: &mut Lexer<Token>) {
     lex.extras += 1;
-    Skip
 }
 
 fn char_callback(lex: &mut Lexer<Token>) -> Result<char, UnescapeError> {
@@ -269,6 +268,7 @@ mod tests {
         "#;
         let mut lexer = Token::lexer(&src);
 
+        assert_eq!(lexer.next(), Some(Ok(Token::NewLine)));
         assert_eq!(
             lexer.next(),
             Some(Ok(Token::Ident("_someId123".to_string())))
@@ -280,7 +280,9 @@ mod tests {
         assert_eq!(lexer.next(), Some(Ok(Token::Char('c'))));
         assert_eq!(lexer.next(), Some(Ok(Token::Int(123))));
         assert_eq!(lexer.next(), Some(Ok(Token::Float(1.23e2))));
+        assert_eq!(lexer.next(), Some(Ok(Token::NewLine)));
         assert_eq!(lexer.next(), Some(Ok(Token::Ident("abc".to_string()))));
+        assert_eq!(lexer.next(), Some(Ok(Token::NewLine)));
         assert_eq!(lexer.next(), None);
     }
 }
