@@ -24,6 +24,8 @@ mod tests {
     fn try_report_error() {
         let src = "let foo: bool = 'c'".to_string();
         let filename = "abc.nln";
-        let _ = report_error(src, filename, "Expected 'char' type.".to_string(), 9..13);
+        if let Err(_) = report_error(src, filename, "Expected 'char' type.".to_string(), 9..13) {
+            panic!();
+        }
     }
 }

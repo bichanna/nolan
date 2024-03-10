@@ -1,4 +1,4 @@
-use logos::{Lexer, Logos, Skip};
+use logos::{skip, Lexer, Logos, Skip};
 use snailquote::unescape;
 
 fn newline_callback(lex: &mut Lexer<Token>) -> Skip {
@@ -8,8 +8,10 @@ fn newline_callback(lex: &mut Lexer<Token>) -> Skip {
 
 #[derive(Logos, Debug, PartialEq)]
 #[logos(extras = usize)]
-#[logos(skip r"[ \t\f]+")]
 enum Token {
+    #[regex(r"[ \t\f]+", skip)]
+    #[regex(r"//[^\n]*\n?", skip)]
+    #[regex(r"/\*(?:[^*]|\*[^/])*\*/", skip)] // Can't be nested
     #[token(";")]
     #[token("\n", newline_callback)]
     NewLine,
@@ -246,7 +248,11 @@ mod tests {
 
     #[test]
     fn others() {
-        let src = r#"_someId123 "Some String!!\n" 'c' 123 1.23e2"#;
+        let src = r#"
+            _someId123 "Some String!!\n" 'c' 123 1.23e2
+            // some comments here!
+            /* hello world */ abc
+        "#;
         let mut lexer = Token::lexer(&src);
 
         assert_eq!(
@@ -260,6 +266,7 @@ mod tests {
         assert_eq!(lexer.next(), Some(Ok(Token::Char('c'))));
         assert_eq!(lexer.next(), Some(Ok(Token::Int(123))));
         assert_eq!(lexer.next(), Some(Ok(Token::Float(1.23e2))));
+        assert_eq!(lexer.next(), Some(Ok(Token::Ident("abc".to_string()))));
         assert_eq!(lexer.next(), None);
     }
 }
