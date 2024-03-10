@@ -1,12 +1,26 @@
+pub mod error;
+
 use logos::{skip, Lexer, Logos, Skip};
-use snailquote::unescape;
+use snailquote::{unescape, UnescapeError};
+
+use crate::lexer::error::LexError;
 
 fn newline_callback(lex: &mut Lexer<Token>) -> Skip {
     lex.extras += 1;
     Skip
 }
 
+fn char_callback(lex: &mut Lexer<Token>) -> Result<char, UnescapeError> {
+    let unescaped = unescape(lex.slice());
+    if let Err(err) = unescaped {
+        Err(err)
+    } else {
+        Ok(unescaped.unwrap().chars().nth(0).unwrap())
+    }
+}
+
 #[derive(Logos, Debug, PartialEq)]
+#[logos(error = LexError)]
 #[logos(extras = usize)]
 enum Token {
     #[regex(r"[ \t\f]+", skip)]
@@ -17,24 +31,24 @@ enum Token {
     NewLine,
 
     /// Identifier
-    #[regex(r"[A-Za-z_][A-Za-z0-9_]+", |lex| lex.slice().to_string(), priority=1)]
+    #[regex(r"[A-Za-z_][A-Za-z0-9_]+", |lex| lex.slice().to_string(), priority = 1)]
     Ident(String),
 
     /// String
     /// Regex inspired by <https://stackoverflow.com/questions/32155133/regex-to-match-a-json-string>
-    #[regex(r#""([^"\\]|\\["\\bnfrt]|u[a-fA-F0-9]{4})*""#, |lex| unescape(lex.slice()).unwrap())]
+    #[regex(r#""([^"\\]|\\["\\bnfrt]|u[a-fA-F0-9]{4})*""#, |lex| unescape(lex.slice()))]
     Str(String),
 
     /// Character
-    #[regex(r#"'([^'\\]|\\['\\bnfrt]|u[a-fA-F0-9]{4})'"#, |lex| unescape(lex.slice()).unwrap().chars().nth(0).unwrap())]
+    #[regex(r#"'([^'\\]|\\['\\bnfrt]|u[a-fA-F0-9]{4})'"#, char_callback)]
     Char(char),
 
     /// Integer
-    #[regex(r"-?(?:0|[1-9]\d*)(?:[eE]?\d+)?", |lex| lex.slice().parse::<i64>().unwrap())]
+    #[regex(r"-?(?:0|[1-9]\d*)(?:[eE]?\d+)?", |lex| lex.slice().parse::<i64>())]
     Int(i64),
 
     /// Float
-    #[regex(r"-?(?:0|[1-9]\d*)\.\d+(?:[eE][+-]?\d+)?", |lex| lex.slice().parse::<f64>().unwrap())]
+    #[regex(r"-?(?:0|[1-9]\d*)\.\d+(?:[eE][+-]?\d+)?", |lex| lex.slice().parse::<f64>())]
     Float(f64),
 
     #[token("(")]
