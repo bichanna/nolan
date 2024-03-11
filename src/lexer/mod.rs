@@ -137,6 +137,9 @@ pub enum Token {
     #[token("::")]
     DColon,
 
+    #[token("_")]
+    Underscore,
+
     // Keywords
     #[token("not")]
     Not,
