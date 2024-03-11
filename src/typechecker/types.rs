@@ -1,8 +1,10 @@
+use logos::Span;
+
 use crate::parser::ast::ExprNode;
 
 /// TODO: Add custom types such as record and enum later.
 #[derive(Clone, Debug, PartialEq)]
-pub enum TypeExpr {
+pub enum Type {
     Integer,
     Float,
     String,
@@ -15,6 +17,9 @@ pub enum TypeExpr {
     Func(Vec<FuncArg>, Box<TypeExpr>),
     Unknown,
 }
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct TypeExpr(Type, Span);
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct FuncArg {

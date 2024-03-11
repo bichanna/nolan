@@ -1,2 +1,2 @@
 pub mod types;
-pub use crate::typechecker::types::TypeExpr;
+pub use crate::typechecker::types::{Type, TypeExpr};

@@ -1,4 +1,5 @@
 use crate::typechecker::TypeExpr;
+use logos::Span;
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum BinaryOp {
@@ -27,31 +28,31 @@ pub enum UnaryOp {
 #[derive(Clone, Debug, PartialEq)]
 pub enum ExprNode {
     /// Binary operation.
-    Binary(TypeExpr, Box<Self>, BinaryOp, Box<Self>),
+    Binary(TypeExpr, Box<Self>, BinaryOp, Box<Self>, Span),
 
     /// Unary operation.
-    Unary(TypeExpr, UnaryOp, Box<Self>),
+    Unary(TypeExpr, UnaryOp, Box<Self>, Span),
 
     /// Grouping expression.
-    Group(TypeExpr, Box<Self>),
+    Group(TypeExpr, Box<Self>, Span),
 
     /// A block of expressions. The last expression in the block is the overall value of the type and the return value of the whole block.
-    Block(TypeExpr, Vec<StmtNode>, Box<Self>),
+    Block(TypeExpr, Vec<StmtNode>, Box<Self>, Span),
 
     /// if-then-else expression.
-    If(TypeExpr, Box<Self>, Box<Self>, Box<Self>),
+    If(TypeExpr, Box<Self>, Box<Self>, Box<Self>, Span),
 
     /// A function without a name but with a body.
-    Func(TypeExpr, Box<Self>),
+    Func(TypeExpr, Box<Self>, Span),
 
     /// Apply a function with give arguments.
-    Apply(TypeExpr, Box<Self>, Vec<Self>),
+    Apply(TypeExpr, Box<Self>, Vec<Self>, Span),
 
     /// Index a list of with an expression that should evaluate to an integer.
-    Index(TypeExpr, Box<Self>, Box<Self>),
+    Index(TypeExpr, Box<Self>, Box<Self>, Span),
 
     /// Get a specific value indexed by an integer in a tuple.
-    TupGet(TypeExpr, Box<Self>, Box<Self>),
+    TupGet(TypeExpr, Box<Self>, Box<Self>, Span),
 }
 
 /// All possible statement nodes.
@@ -59,23 +60,23 @@ pub enum ExprNode {
 #[derive(Debug, Clone, PartialEq)]
 pub enum StmtNode {
     /// Assignment operation. Returns void.
-    Assign(TypeExpr, String, ExprNode),
+    Assign(TypeExpr, String, ExprNode, Span),
 
     /// While loop.
-    While(ExprNode, Box<Self>),
+    While(ExprNode, Box<Self>, Span),
 
     /// If-then-else statement.
-    If(TypeExpr, ExprNode, Box<Self>, Option<Box<Self>>),
+    If(TypeExpr, ExprNode, Box<Self>, Option<Box<Self>>, Span),
 
     /// A break statement.
-    Break,
+    Break(Span),
 
     /// A continue statement.
-    Continue,
+    Continue(Span),
 
     /// A return statement.
-    Return(Option<ExprNode>),
+    Return(Option<ExprNode>, Span),
 
     /// A function statement.
-    Func(String, Box<Self>),
+    Func(String, Box<Self>, Span),
 }
