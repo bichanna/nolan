@@ -21,7 +21,7 @@ fn char_callback(lex: &mut Lexer<Token>) -> Result<char, UnescapeError> {
 #[derive(Logos, Debug, PartialEq)]
 #[logos(error = LexError)]
 #[logos(extras = usize)]
-enum Token {
+pub enum Token {
     #[regex(r"[ \t\f]+", skip)]
     #[regex(r"//[^\n]*\n?", skip)]
     #[regex(r"/\*(?:[^*]|\*[^/])*\*/", skip)] // Can't be nested
@@ -119,9 +119,6 @@ enum Token {
     #[token("<.")]
     LDot,
 
-    #[token("!")]
-    Neg,
-
     #[token("!=")]
     NotEq,
 
@@ -141,6 +138,9 @@ enum Token {
     DColon,
 
     // Keywords
+    #[token("not")]
+    Not,
+
     #[token("if")]
     If,
 
@@ -221,9 +221,10 @@ mod tests {
 
     #[test]
     fn keywords() {
-        let src = "if else then func match let record enum type while break continue import export true false";
+        let src = "not if else then func match let record enum type while break continue import export true false";
         let mut lexer = Token::lexer(&src);
 
+        assert_eq!(lexer.next(), Some(Ok(Token::Not)));
         assert_eq!(lexer.next(), Some(Ok(Token::If)));
         assert_eq!(lexer.next(), Some(Ok(Token::Else)));
         assert_eq!(lexer.next(), Some(Ok(Token::Then)));
