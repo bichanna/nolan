@@ -18,7 +18,7 @@ fn char_callback(lex: &mut Lexer<Token>) -> Result<char, UnescapeError> {
     }
 }
 
-#[derive(Logos, Debug, PartialEq)]
+#[derive(Logos, Clone, Debug, PartialEq)]
 #[logos(error = LexError)]
 #[logos(extras = usize)]
 pub enum Token {
@@ -130,6 +130,9 @@ pub enum Token {
 
     #[token(".")]
     Dot,
+
+    #[token("...")]
+    ThreeDot,
 
     #[token(":")]
     Colon,

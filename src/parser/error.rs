@@ -15,6 +15,12 @@ pub struct ParseError {
 pub enum ParseErrorType {
     #[error("{0}")]
     LexError(LexError),
+
+    #[error("Expected {0}")]
+    ExpectedDiffTokenError(String),
+
+    #[error("Invalid type: {0}")]
+    InvalidTypeError(String),
 }
 
 impl ParseError {
