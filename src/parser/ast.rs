@@ -37,13 +37,13 @@ pub enum ExprNode {
     Group(TypeExpr, Box<Self>, Span),
 
     /// A block of expressions. The last expression in the block is the overall value of the type and the return value of the whole block.
-    Block(TypeExpr, Vec<StmtNode>, Box<Self>, Span),
+    Block(TypeExpr, Vec<StmtNode>, Span),
 
     /// if-then-else expression.
     If(TypeExpr, Box<Self>, Box<Self>, Box<Self>, Span),
 
     /// A function without a name but with a body.
-    Func(TypeExpr, Vec<String>, Box<Self>, Span),
+    Func(TypeExpr, Box<Self>, Span),
 
     /// Apply a function with give arguments.
     Apply(TypeExpr, Box<Self>, Vec<Self>, Span),
@@ -53,20 +53,26 @@ pub enum ExprNode {
 
     /// Get a specific value indexed by an integer in a tuple.
     TupGet(TypeExpr, Box<Self>, Box<Self>, Span),
+
+    /// Reassignment
+    Reassign(Box<Self>, Box<Self>, Span),
 }
 
 /// All possible statement nodes.
 /// TODO: enum, record, import, export, type later
 #[derive(Debug, Clone, PartialEq)]
 pub enum StmtNode {
+    /// Expression.
+    Expr(ExprNode),
+
     /// Assignment operation. Returns void.
     Assign(TypeExpr, String, ExprNode, Span),
 
     /// While loop.
-    While(ExprNode, Box<Self>, Span),
+    While(ExprNode, ExprNode, Span),
 
     /// If-then-else statement.
-    If(TypeExpr, ExprNode, Box<Self>, Option<Box<Self>>, Span),
+    If(ExprNode, ExprNode, Option<ExprNode>, Span),
 
     /// A break statement.
     Break(Span),
@@ -78,5 +84,5 @@ pub enum StmtNode {
     Return(Option<ExprNode>, Span),
 
     /// A function statement.
-    Func(String, Box<Self>, Span),
+    Func(String, ExprNode, Span),
 }

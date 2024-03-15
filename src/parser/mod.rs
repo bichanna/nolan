@@ -30,6 +30,7 @@ macro_rules! matches_this {
     }};
 }
 
+/// TODO: Create a short cut of this.
 macro_rules! expect {
     ($self: expr, $token: pat, $err_type: expr) => {{
         if !matches!(current_token!($self), $token) {
@@ -82,11 +83,70 @@ pub fn parse(filename: &str) -> Option<Vec<StmtNode>> {
 }
 
 impl Parser<'_> {
-    fn statement(&mut self) -> Result<StmtNode, ParseError> {
+    fn expression(&mut self) -> Result<ExprNode, ParseError> {
         todo!()
     }
 
+    fn expr_statement(&mut self) -> Result<StmtNode, ParseError> {
+        let expr = self.expression()?;
+        Ok(StmtNode::Expr(expr))
+    }
+    fn statement(&mut self) -> Result<StmtNode, ParseError> {
+        let span = self.lexer.span();
+
+        match self.current {
+            Ok(Token::While) => {
+                self.next();
+
+                let cond = self.expression()?;
+
+                expect!(
+                    self,
+                    Token::Then,
+                    ParseErrorType::ExpectedDiffTokenError("'then'".to_string())
+                );
+
+                let body = self.expression()?;
+
+                Ok(StmtNode::While(cond, body, span))
+            }
+            Ok(Token::If) => {
+                self.next();
+
+                let cond = self.expression()?;
+
+                expect!(
+                    self,
+                    Token::Then,
+                    ParseErrorType::ExpectedDiffTokenError("'then'".to_string())
+                );
+
+                let then_body = self.expression()?;
+
+                let else_body = if matches_this!(self, Token::Else) {
+                    self.next();
+                    Some(self.expression()?)
+                } else {
+                    None
+                };
+
+                Ok(StmtNode::If(cond, then_body, else_body, span))
+            }
+            Ok(Token::Continue) => {
+                self.next();
+                Ok(StmtNode::Continue(span))
+            }
+            Ok(Token::Break) => {
+                self.next();
+                Ok(StmtNode::Break(span))
+            }
+            _ => self.expr_statement(),
+        }
+    }
+
     fn var_declaration(&mut self) -> Result<StmtNode, ParseError> {
+        let span = self.lexer.span();
+
         self.next();
 
         let Token::Ident(name) = expect!(
@@ -96,6 +156,8 @@ impl Parser<'_> {
         ) else {
             unreachable!()
         };
+
+        let name = name.clone();
 
         let var_type = if matches_this!(self, Token::Colon) {
             self.next();
@@ -110,14 +172,103 @@ impl Parser<'_> {
             ParseErrorType::ExpectedDiffTokenError("'='".to_string())
         );
 
-        todo!() // TODO: Fix this after writing expression function
+        let value = self.expression()?;
+
+        Ok(StmtNode::Assign(var_type, name, value, span))
+    }
+
+    fn func_declaration(&mut self) -> Result<StmtNode, ParseError> {
+        let span = self.lexer.span();
+
+        self.next();
+
+        let Token::Ident(name) = expect!(
+            self,
+            Token::Ident(..),
+            ParseErrorType::ExpectedDiffTokenError("an identifier".to_string())
+        ) else {
+            unreachable!()
+        };
+        let name = name.clone();
+
+        // TODO: Genetic check here.
+
+        expect!(
+            self,
+            Token::LeftParen,
+            ParseErrorType::ExpectedDiffTokenError("(".to_string())
+        );
+
+        // Get parameters.
+        let mut params = Vec::<FuncArg>::new();
+        while !matches_this!(self, Token::RightParen) {
+            let Token::Ident(param_name) = expect!(
+                self,
+                Token::Ident(..),
+                ParseErrorType::ExpectedDiffTokenError("an identifier".to_string())
+            ) else {
+                unreachable!()
+            };
+            let param_name = param_name.clone();
+
+            expect!(
+                self,
+                Token::Colon,
+                ParseErrorType::ExpectedDiffTokenError(":".to_string())
+            );
+
+            let type_expr = self.get_type_expr()?;
+
+            let param_type = match self.current {
+                Ok(Token::Eq) => unimplemented!(), // TODO: implement this later
+                Ok(Token::ThreeDot) => FuncArgType::VarArgs,
+                _ => FuncArgType::Positional,
+            };
+
+            let param = FuncArg::new_with_name(param_name, type_expr, param_type);
+            params.push(param);
+
+            if !matches_this!(self, Token::Comma) {
+                break;
+            } else {
+                self.next();
+            }
+        }
+
+        expect!(
+            self,
+            Token::RightParen,
+            ParseErrorType::ExpectedDiffTokenError(")".to_string())
+        );
+
+        // Get return type.
+        let return_type = if matches_this!(self, Token::Colon) {
+            self.next();
+            self.get_type_expr()?
+        } else {
+            let result = TypeExpr(Type::Void, Some(self.lexer.span()));
+            self.next();
+            result
+        };
+
+        // Get body.
+        let body_span = self.lexer.span();
+        let body = self.expression()?; // TODO: After expression func.
+
+        let func = StmtNode::Func(
+            name,
+            ExprNode::Func(return_type, Box::new(body), body_span),
+            span,
+        );
+
+        Ok(func)
     }
 
     fn declaration(&mut self) -> Result<StmtNode, ParseError> {
         let current = current_token!(self);
         match current {
             Token::Let => self.var_declaration(),
-            Token::Func => todo!(),
+            Token::Func => self.func_declaration(),
             _ => {
                 let result = self.statement();
 
@@ -133,29 +284,6 @@ impl Parser<'_> {
             }
         }
     }
-
-    fn parse(&mut self) {
-        while !self.done {
-            let parse_result = self.declaration();
-            if let Ok(node) = parse_result {
-                self.ast.push(node);
-            } else {
-                self.had_error = true;
-
-                let Err(err) = parse_result else {
-                    unreachable!()
-                };
-                let filename = self.filename;
-                let src =
-                    fs::read_to_string(filename).expect(&format!("No file named '{}'", filename));
-                if let Err(err) = report_error(src, filename, err.to_string(), err.span) {
-                    eprintln!("Failed error reporting: {}", err);
-                }
-            }
-        }
-    }
-
-    // ---------- SIMPLIFICATION FUNCTIONS ----------
 
     fn get_type_expr(&mut self) -> Result<TypeExpr, ParseError> {
         if matches_this!(self, Token::LeftBrak) {
@@ -212,12 +340,11 @@ impl Parser<'_> {
             let mut args = Vec::<FuncArg>::new();
             while !matches_this!(self, Token::RightParen) {
                 let type_expr = self.get_type_expr()?;
-                let func_arg_type = if matches_this!(self, Token::ThreeDot) {
-                    FuncArgType::VarArgs
-                } else if matches_this!(self, Token::Eq) {
-                    FuncArgType::Default(unimplemented!()) // TODO: Fix this later after writing expression function.
-                } else {
-                    FuncArgType::Positional
+
+                let func_arg_type = match self.current {
+                    Ok(Token::Eq) => unimplemented!(), // TODO: implement this later
+                    Ok(Token::ThreeDot) => FuncArgType::VarArgs,
+                    _ => FuncArgType::Positional,
                 };
 
                 args.push(FuncArg::new(type_expr, func_arg_type));
@@ -254,6 +381,27 @@ impl Parser<'_> {
                     ParseErrorType::InvalidTypeError(format!("{:?}", current_token!(self))),
                     self.lexer.span(),
                 ))
+            }
+        }
+    }
+
+    fn parse(&mut self) {
+        while !self.done {
+            let parse_result = self.declaration();
+            if let Ok(node) = parse_result {
+                self.ast.push(node);
+            } else {
+                self.had_error = true;
+
+                let Err(err) = parse_result else {
+                    unreachable!()
+                };
+                let filename = self.filename;
+                let src =
+                    fs::read_to_string(filename).expect(&format!("No file named '{}'", filename));
+                if let Err(err) = report_error(src, filename, err.to_string(), err.span) {
+                    eprintln!("Failed error reporting: {}", err);
+                }
             }
         }
     }
