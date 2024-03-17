@@ -48,11 +48,8 @@ pub enum ExprNode {
     /// Apply a function with give arguments.
     Apply(TypeExpr, Box<Self>, Vec<Self>, Span),
 
-    /// Index a list of with an expression that should evaluate to an integer.
+    /// Index a list or tuple of with an expression that should evaluate to an integer.
     Index(TypeExpr, Box<Self>, Box<Self>, Span),
-
-    /// Get a specific value indexed by an integer in a tuple.
-    TupGet(TypeExpr, Box<Self>, Box<Self>, Span),
 
     /// Reassignment
     Assign(Box<Self>, Box<Self>, Span),

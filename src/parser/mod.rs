@@ -102,8 +102,97 @@ pub fn parse(filename: &str) -> Option<Vec<StmtNode>> {
 }
 
 impl Parser<'_> {
-    fn call(&mut self, arg: Option<ExprNode>) -> Result<ExprNode, ParseError> {
+    fn primary(&mut self) -> Result<ExprNode, ParseError> {
         todo!()
+    }
+
+    fn finish_call(
+        &mut self,
+        callee: ExprNode,
+        arg: Option<ExprNode>,
+    ) -> Result<ExprNode, ParseError> {
+        let span = self.lexer.span();
+
+        expect!(
+            self,
+            Token::LeftParen,
+            ParseErrorType::ExpectedDiffTokenError("(".to_string())
+        );
+
+        let mut args = Vec::<ExprNode>::new();
+
+        if let Some(arg) = arg {
+            args.push(arg);
+        }
+
+        if !matches_this!(self, Token::RightParen) {
+            args.push(self.expression()?);
+
+            while matches_this!(self, Token::Comma) {
+                self.next();
+
+                if args.len() > 127 {
+                    // C99 Standard
+                    return Err(ParseError::new(ParseErrorType::MaxArgLenError, span));
+                }
+
+                args.push(self.expression()?);
+            }
+        }
+
+        expect!(
+            self,
+            Token::RightParen,
+            ParseErrorType::ExpectedDiffTokenError(")".to_string())
+        );
+
+        // TODO: Check for special callback function syntax later
+
+        Ok(ExprNode::Apply(
+            TypeExpr(Type::Unknown, Some(span.clone())),
+            Box::new(callee),
+            args,
+            span,
+        ))
+    }
+
+    fn call(&mut self, mut arg: Option<ExprNode>) -> Result<ExprNode, ParseError> {
+        let mut expr = self.primary()?;
+
+        loop {
+            match self.current {
+                Ok(Token::LeftParen) => {
+                    expr = self.finish_call(expr, arg)?;
+                    arg = None;
+                }
+                Ok(Token::Dot) => {
+                    self.next();
+                    expr = self.call(Some(expr))?;
+                    break;
+                }
+                Ok(Token::LeftBrak) => {
+                    self.next();
+                    let span = self.lexer.span();
+                    let index = self.expression()?;
+                    expect!(
+                        self,
+                        Token::RightBrak,
+                        ParseErrorType::ExpectedDiffTokenError("]".to_string())
+                    );
+                    expr = ExprNode::Index(
+                        TypeExpr(Type::Unknown, None),
+                        Box::new(expr),
+                        Box::new(index),
+                        span,
+                    );
+                }
+                _ => {
+                    break;
+                }
+            };
+        }
+
+        Ok(expr)
     }
 
     fn unary(&mut self) -> Result<ExprNode, ParseError> {

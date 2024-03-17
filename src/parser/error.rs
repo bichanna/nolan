@@ -21,6 +21,9 @@ pub enum ParseErrorType {
 
     #[error("Invalid type: {0}")]
     InvalidTypeError(String),
+
+    #[error("Exceeded max argument length")]
+    MaxArgLenError,
 }
 
 impl ParseError {
