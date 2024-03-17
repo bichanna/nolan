@@ -195,6 +195,12 @@ pub enum Token {
     #[token("false")]
     False,
 
+    #[token("and")]
+    And,
+
+    #[token["or"]]
+    Or,
+
     // Primitive types
     #[token("str")]
     TStr,
@@ -227,7 +233,7 @@ mod tests {
 
     #[test]
     fn keywords() {
-        let src = "not if else then func match let record enum type while break continue import export true false";
+        let src = "not if else then func match let record enum type while break continue import export true false and or";
         let mut lexer = Token::lexer(&src);
 
         assert_eq!(lexer.next(), Some(Ok(Token::Not)));
@@ -247,6 +253,8 @@ mod tests {
         assert_eq!(lexer.next(), Some(Ok(Token::Export)));
         assert_eq!(lexer.next(), Some(Ok(Token::True)));
         assert_eq!(lexer.next(), Some(Ok(Token::False)));
+        assert_eq!(lexer.next(), Some(Ok(Token::And)));
+        assert_eq!(lexer.next(), Some(Ok(Token::Or)));
         assert_eq!(lexer.next(), None);
     }
 
