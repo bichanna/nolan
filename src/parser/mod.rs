@@ -6,7 +6,7 @@ use std::fs;
 use crate::error::report_error;
 use crate::lexer::error::LexError;
 use crate::lexer::Token;
-use crate::parser::ast::{ExprNode, StmtNode};
+use crate::parser::ast::{BinaryOp, ExprNode, StmtNode};
 pub use crate::parser::error::{ParseError, ParseErrorType};
 use crate::typechecker::types::{FuncArg, FuncArgType};
 use crate::typechecker::{Type, TypeExpr};
@@ -40,6 +40,23 @@ macro_rules! expect {
         }
 
         current_token!($self)
+    }};
+}
+
+macro_rules! binary_assign {
+    ($self: expr, $bin_op: expr, $expr: expr, $span: expr) => {{
+        $self.next();
+        Ok(ExprNode::Assign(
+            Box::new($expr.clone()),
+            Box::new(ExprNode::Binary(
+                TypeExpr(Type::Unknown, None),
+                Box::new($expr),
+                $bin_op,
+                Box::new($self.expression()?),
+                $span.clone(),
+            )),
+            $span,
+        ))
     }};
 }
 
@@ -83,8 +100,91 @@ pub fn parse(filename: &str) -> Option<Vec<StmtNode>> {
 }
 
 impl Parser<'_> {
-    fn expression(&mut self) -> Result<ExprNode, ParseError> {
+    fn comp_expr(&mut self) -> Result<ExprNode, ParseError> {
         todo!()
+    }
+
+    fn eq_expr(&mut self) -> Result<ExprNode, ParseError> {
+        let mut expr = self.comp_expr()?;
+
+        while matches_this!(self, Token::DEq) || matches_this!(self, Token::NotEq) {
+            let span = self.lexer.span();
+            let bin_op = if matches_this!(self, Token::DEq) {
+                BinaryOp::Eq
+            } else {
+                BinaryOp::NEq
+            };
+            expr = ExprNode::Binary(
+                TypeExpr(Type::Bool, None),
+                Box::new(expr),
+                bin_op,
+                Box::new(self.comp_expr()?),
+                span,
+            );
+        }
+
+        Ok(expr)
+    }
+
+    fn and_expr(&mut self) -> Result<ExprNode, ParseError> {
+        let mut expr = self.eq_expr()?;
+
+        while matches_this!(self, Token::And) {
+            let span = self.lexer.span();
+            expr = ExprNode::Binary(
+                TypeExpr(Type::Bool, None),
+                Box::new(expr),
+                BinaryOp::And,
+                Box::new(self.eq_expr()?),
+                span,
+            );
+        }
+
+        Ok(expr)
+    }
+
+    fn or_expr(&mut self) -> Result<ExprNode, ParseError> {
+        let mut expr = self.and_expr()?;
+
+        while matches_this!(self, Token::Or) {
+            let span = self.lexer.span();
+            expr = ExprNode::Binary(
+                TypeExpr(Type::Bool, None),
+                Box::new(expr),
+                BinaryOp::Or,
+                Box::new(self.and_expr()?),
+                span,
+            );
+        }
+
+        Ok(expr)
+    }
+
+    fn assignment(&mut self) -> Result<ExprNode, ParseError> {
+        let expr = self.or_expr()?;
+        let span = self.lexer.span();
+
+        match &self.current {
+            Ok(Token::Eq) => {
+                self.next();
+                Ok(ExprNode::Assign(
+                    Box::new(expr),
+                    Box::new(self.expression()?),
+                    span,
+                ))
+            }
+            Ok(Token::PlusEq) => binary_assign!(self, BinaryOp::Add, expr, span),
+            Ok(Token::MinusEq) => binary_assign!(self, BinaryOp::Sub, expr, span),
+            Ok(Token::MulEq) => binary_assign!(self, BinaryOp::Mul, expr, span),
+            Ok(Token::DivEq) => binary_assign!(self, BinaryOp::Div, expr, span),
+            Ok(Token::RemEq) => binary_assign!(self, BinaryOp::Rem, expr, span),
+            Err(err) => Err(ParseError::new(ParseErrorType::LexError(err.clone()), span)),
+            _ => Ok(expr),
+        }
+    }
+
+    fn expression(&mut self) -> Result<ExprNode, ParseError> {
+        self.assignment()
     }
 
     fn expr_statement(&mut self) -> Result<StmtNode, ParseError> {

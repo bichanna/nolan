@@ -55,7 +55,7 @@ pub enum ExprNode {
     TupGet(TypeExpr, Box<Self>, Box<Self>, Span),
 
     /// Reassignment
-    Reassign(Box<Self>, Box<Self>, Span),
+    Assign(Box<Self>, Box<Self>, Span),
 }
 
 /// All possible statement nodes.
@@ -65,7 +65,7 @@ pub enum StmtNode {
     /// Expression.
     Expr(ExprNode),
 
-    /// Assignment operation. Returns void.
+    /// Assignment operation.
     Assign(TypeExpr, String, ExprNode, Span),
 
     /// While loop.
