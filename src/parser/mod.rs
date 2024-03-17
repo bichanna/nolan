@@ -12,6 +12,8 @@ use crate::typechecker::types::{FuncArg, FuncArgType};
 use crate::typechecker::{Type, TypeExpr};
 use logos::{Lexer, Logos};
 
+use self::ast::UnaryOp;
+
 macro_rules! current_token {
     ($self: expr) => {{
         if let Err(lex_err) = &$self.current {
@@ -100,8 +102,101 @@ pub fn parse(filename: &str) -> Option<Vec<StmtNode>> {
 }
 
 impl Parser<'_> {
-    fn comp_expr(&mut self) -> Result<ExprNode, ParseError> {
+    fn call(&mut self, arg: Option<ExprNode>) -> Result<ExprNode, ParseError> {
         todo!()
+    }
+
+    fn unary(&mut self) -> Result<ExprNode, ParseError> {
+        let span = self.lexer.span();
+        if matches_this!(self, Token::Not) {
+            Ok(ExprNode::Unary(
+                TypeExpr(Type::Bool, Some(span.clone())),
+                UnaryOp::NegBool,
+                Box::new(self.unary()?),
+                span,
+            ))
+        } else {
+            Ok(self.call(None)?)
+        }
+    }
+
+    fn factor(&mut self) -> Result<ExprNode, ParseError> {
+        let mut expr = self.unary()?;
+
+        while matches_this!(self, Token::Div)
+            || matches_this!(self, Token::Mul)
+            || matches_this!(self, Token::Rem)
+        {
+            let span = self.lexer.span();
+            let bin_op = if matches_this!(self, Token::Div) {
+                BinaryOp::Div
+            } else if matches_this!(self, Token::Rem) {
+                BinaryOp::Rem
+            } else {
+                BinaryOp::Mul
+            };
+            expr = ExprNode::Binary(
+                TypeExpr(Type::Bool, None),
+                Box::new(expr),
+                bin_op,
+                Box::new(self.unary()?),
+                span,
+            );
+        }
+
+        Ok(expr)
+    }
+
+    fn term(&mut self) -> Result<ExprNode, ParseError> {
+        let mut expr = self.factor()?;
+
+        while matches_this!(self, Token::Minus) || matches_this!(self, Token::Plus) {
+            let span = self.lexer.span();
+            let bin_op = if matches_this!(self, Token::Minus) {
+                BinaryOp::Sub
+            } else {
+                BinaryOp::Add
+            };
+            expr = ExprNode::Binary(
+                TypeExpr(Type::Bool, None),
+                Box::new(expr),
+                bin_op,
+                Box::new(self.factor()?),
+                span,
+            );
+        }
+
+        Ok(expr)
+    }
+
+    fn comp_expr(&mut self) -> Result<ExprNode, ParseError> {
+        let mut expr = self.term()?;
+
+        while matches_this!(self, Token::GT)
+            || matches_this!(self, Token::LT)
+            || matches_this!(self, Token::GE)
+            || matches_this!(self, Token::LE)
+        {
+            let span = self.lexer.span();
+            let bin_op = if matches_this!(self, Token::GT) {
+                BinaryOp::GT
+            } else if matches_this!(self, Token::LT) {
+                BinaryOp::LT
+            } else if matches_this!(self, Token::GE) {
+                BinaryOp::GE
+            } else {
+                BinaryOp::LE
+            };
+            expr = ExprNode::Binary(
+                TypeExpr(Type::Bool, None),
+                Box::new(expr),
+                bin_op,
+                Box::new(self.term()?),
+                span,
+            );
+        }
+
+        Ok(expr)
     }
 
     fn eq_expr(&mut self) -> Result<ExprNode, ParseError> {
@@ -320,7 +415,7 @@ impl Parser<'_> {
             let type_expr = self.get_type_expr()?;
 
             let param_type = match self.current {
-                Ok(Token::Eq) => unimplemented!(), // TODO: implement this later
+                Ok(Token::Eq) => FuncArgType::Default(self.expression()?),
                 Ok(Token::ThreeDot) => FuncArgType::VarArgs,
                 _ => FuncArgType::Positional,
             };
@@ -353,7 +448,7 @@ impl Parser<'_> {
 
         // Get body.
         let body_span = self.lexer.span();
-        let body = self.expression()?; // TODO: After expression func.
+        let body = self.expression()?;
 
         let func = StmtNode::Func(
             name,
@@ -442,7 +537,7 @@ impl Parser<'_> {
                 let type_expr = self.get_type_expr()?;
 
                 let func_arg_type = match self.current {
-                    Ok(Token::Eq) => unimplemented!(), // TODO: implement this later
+                    Ok(Token::Eq) => FuncArgType::Default(self.expression()?),
                     Ok(Token::ThreeDot) => FuncArgType::VarArgs,
                     _ => FuncArgType::Positional,
                 };
