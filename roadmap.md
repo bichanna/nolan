@@ -44,6 +44,7 @@
    - [ ] LLVM
  - [ ] LSP server.
  - [ ] Warnings when variables are unused.
+ - [ ] Line continuations.
 
 ## Concurrency
  - [ ] Actor model concurrency.
