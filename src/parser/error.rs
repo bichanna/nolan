@@ -2,6 +2,7 @@ use logos::Span;
 use thiserror::Error;
 
 use crate::lexer::error::LexError;
+use crate::lexer::Token;
 
 /// The error thrown when a parsing error occurs.
 #[derive(Clone, Error, Debug, PartialEq)]
@@ -24,6 +25,9 @@ pub enum ParseErrorType {
 
     #[error("Exceeded max argument length")]
     MaxArgLenError,
+
+    #[error("Invalid token: {0:?}")]
+    InvalidTokenError(Token),
 }
 
 impl ParseError {

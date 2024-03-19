@@ -23,10 +23,27 @@ pub enum UnaryOp {
     NegBool,
 }
 
+#[derive(Clone, Debug, PartialEq)]
+pub enum Literal {
+    Str(String),
+    Char(char),
+    Int(i64),
+    Float(f64),
+    Bool(bool),
+    List(Vec<ExprNode>),
+    Tup(Vec<ExprNode>),
+}
+
 /// All possible expression nodes.
 /// TODO: Add pattern matching, record init, enum later.
 #[derive(Clone, Debug, PartialEq)]
 pub enum ExprNode {
+    /// An identifier.
+    Ident(String, Span),
+
+    /// Literal expression.
+    Literal(Literal, Span),
+
     /// Binary operation.
     Binary(TypeExpr, Box<Self>, BinaryOp, Box<Self>, Span),
 

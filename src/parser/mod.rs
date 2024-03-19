@@ -6,13 +6,11 @@ use std::fs;
 use crate::error::report_error;
 use crate::lexer::error::LexError;
 use crate::lexer::Token;
-use crate::parser::ast::{BinaryOp, ExprNode, StmtNode};
+use crate::parser::ast::{BinaryOp, ExprNode, Literal, StmtNode, UnaryOp};
 pub use crate::parser::error::{ParseError, ParseErrorType};
 use crate::typechecker::types::{FuncArg, FuncArgType};
 use crate::typechecker::{Type, TypeExpr};
 use logos::{Lexer, Logos};
-
-use self::ast::UnaryOp;
 
 macro_rules! current_token {
     ($self: expr) => {{
@@ -103,7 +101,96 @@ pub fn parse(filename: &str) -> Option<Vec<StmtNode>> {
 
 impl Parser<'_> {
     fn primary(&mut self) -> Result<ExprNode, ParseError> {
-        todo!()
+        let span = self.lexer.span();
+        match &self.current {
+            Ok(Token::True) => Ok(ExprNode::Literal(Literal::Bool(true), span)),
+            Ok(Token::False) => Ok(ExprNode::Literal(Literal::Bool(false), span)),
+            Ok(Token::Ident(name)) => Ok(ExprNode::Ident(name.clone(), span)),
+            Ok(Token::LeftBrace) => {
+                let span = self.lexer.span();
+                self.next();
+                let mut block = Vec::<StmtNode>::new();
+
+                while !matches_this!(self, Token::RightBrace) {
+                    block.push(self.declaration()?);
+                }
+
+                Ok(ExprNode::Block(TypeExpr(Type::Unknown, None), block, span))
+            }
+            Ok(Token::LeftBrak) => {
+                self.next();
+
+                let mut exprs = Vec::<ExprNode>::new();
+
+                if !matches_this!(self, Token::RightBrak) {
+                    exprs.push(self.expression()?);
+
+                    while matches_this!(self, Token::Comma) {
+                        self.next();
+                        exprs.push(self.expression()?);
+                    }
+
+                    expect!(
+                        self,
+                        Token::RightBrak,
+                        ParseErrorType::ExpectedDiffTokenError("]".to_string())
+                    );
+                }
+
+                Ok(ExprNode::Literal(Literal::List(exprs), span))
+            }
+            Ok(Token::GT) => {
+                self.next();
+
+                let mut exprs = Vec::<ExprNode>::new();
+
+                if !matches_this!(self, Token::LT) {
+                    exprs.push(self.expression()?);
+
+                    while matches_this!(self, Token::Comma) {
+                        self.next();
+                        exprs.push(self.expression()?);
+                    }
+
+                    expect!(
+                        self,
+                        Token::LT,
+                        ParseErrorType::ExpectedDiffTokenError(">".to_string())
+                    );
+                }
+
+                Ok(ExprNode::Literal(Literal::Tup(exprs), span))
+            }
+            Ok(Token::BackSlash) => {
+                self.next();
+
+                let params = self.get_params()?;
+
+                // Get return type.
+                let return_type = if matches_this!(self, Token::Colon) {
+                    self.next();
+                    self.get_type_expr()?
+                } else {
+                    let result = TypeExpr(Type::Void, Some(self.lexer.span()));
+                    self.next();
+                    result
+                };
+
+                // Get body.
+                let body_span = self.lexer.span();
+                let body = self.expression()?;
+
+                Ok(ExprNode::Func(
+                    TypeExpr(Type::Func(params, Box::new(return_type)), None),
+                    Box::new(body),
+                    body_span,
+                ))
+            }
+            _ => Err(ParseError::new(
+                ParseErrorType::InvalidTokenError(current_token!(self).clone()),
+                self.lexer.span(),
+            )),
+        }
     }
 
     fn finish_call(
@@ -461,30 +548,15 @@ impl Parser<'_> {
         Ok(StmtNode::Assign(var_type, name, value, span))
     }
 
-    fn func_declaration(&mut self) -> Result<StmtNode, ParseError> {
-        let span = self.lexer.span();
-
-        self.next();
-
-        let Token::Ident(name) = expect!(
-            self,
-            Token::Ident(..),
-            ParseErrorType::ExpectedDiffTokenError("an identifier".to_string())
-        ) else {
-            unreachable!()
-        };
-        let name = name.clone();
-
-        // TODO: Genetic check here.
-
+    fn get_params(&mut self) -> Result<Vec<FuncArg>, ParseError> {
         expect!(
             self,
             Token::LeftParen,
             ParseErrorType::ExpectedDiffTokenError("(".to_string())
         );
 
-        // Get parameters.
         let mut params = Vec::<FuncArg>::new();
+
         while !matches_this!(self, Token::RightParen) {
             let Token::Ident(param_name) = expect!(
                 self,
@@ -525,6 +597,27 @@ impl Parser<'_> {
             ParseErrorType::ExpectedDiffTokenError(")".to_string())
         );
 
+        Ok(params)
+    }
+
+    fn func_declaration(&mut self) -> Result<StmtNode, ParseError> {
+        let span = self.lexer.span();
+
+        self.next();
+
+        let Token::Ident(name) = expect!(
+            self,
+            Token::Ident(..),
+            ParseErrorType::ExpectedDiffTokenError("an identifier".to_string())
+        ) else {
+            unreachable!()
+        };
+        let name = name.clone();
+
+        // TODO: Genetic check here.
+
+        let params = self.get_params()?;
+
         // Get return type.
         let return_type = if matches_this!(self, Token::Colon) {
             self.next();
@@ -541,7 +634,11 @@ impl Parser<'_> {
 
         let func = StmtNode::Func(
             name,
-            ExprNode::Func(return_type, Box::new(body), body_span),
+            ExprNode::Func(
+                TypeExpr(Type::Func(params, Box::new(return_type)), None),
+                Box::new(body),
+                body_span,
+            ),
             span,
         );
 
