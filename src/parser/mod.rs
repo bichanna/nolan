@@ -233,7 +233,11 @@ impl Parser<'_> {
             ParseErrorType::ExpectedDiffTokenError(")".to_string())
         );
 
-        // TODO: Check for special callback function syntax later
+        // Check for '<.'
+        if matches_this!(self, Token::LDot) {
+            self.next();
+            args.push(self.expression()?);
+        }
 
         Ok(ExprNode::Apply(
             TypeExpr(Type::Unknown, Some(span.clone())),
