@@ -79,6 +79,9 @@ pub enum StmtNode {
     /// Expression.
     Expr(ExprNode),
 
+    /// A block.
+    Block(TypeExpr, Vec<StmtNode>, Span),
+
     /// Assignment operation.
     Assign(TypeExpr, String, ExprNode, Span),
 
@@ -86,7 +89,7 @@ pub enum StmtNode {
     While(ExprNode, ExprNode, Span),
 
     /// If-then-else statement.
-    If(ExprNode, ExprNode, Option<ExprNode>, Span),
+    If(ExprNode, Box<StmtNode>, Option<Box<StmtNode>>, Span),
 
     /// A break statement.
     Break(Span),

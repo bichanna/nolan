@@ -1,0 +1,25 @@
+let abc = "hello world";
+
+while asdfasdf < 10 then
+    println("Hello world");
+
+if aasdfasdfasd > 10 then
+    println(a);
+else if true then
+    123;
+else
+    false;
+
+break;
+
+continue;
+
+return void;
+
+return 123.321;
+
+/*
+func some_func(arg1: int, arg2: str, def: float = 1.23, abc: char...): int
+    let abc = "abc";
+    println(abc);
+*/

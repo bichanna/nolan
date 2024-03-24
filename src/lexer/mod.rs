@@ -22,15 +22,15 @@ fn char_callback(lex: &mut Lexer<Token>) -> Result<char, UnescapeError> {
 #[logos(error = LexError)]
 #[logos(extras = usize)]
 pub enum Token {
-    #[regex(r"[ \t\f]+", skip)]
+    #[regex(r"[ \n\t\f]+", skip)]
     #[regex(r"//[^\n]*\n?", skip)]
     #[regex(r"/\*(?:[^*]|\*[^/])*\*/", skip)] // Can't be nested
     #[token(";")]
-    #[token("\n", newline_callback)]
+    // #[token("\n", newline_callback)]
     NewLine,
 
     /// Identifier
-    #[regex(r"[A-Za-z_][A-Za-z0-9_]+", |lex| lex.slice().to_string(), priority = 1)]
+    #[regex(r"[A-Za-z_][A-Za-z0-9_]*", |lex| lex.slice().to_string(), priority = 1)]
     Ident(String),
 
     /// String
@@ -183,6 +183,9 @@ pub enum Token {
     #[token("continue")]
     Continue,
 
+    #[token("return")]
+    Return,
+
     #[token("import")]
     Import,
 
@@ -260,7 +263,7 @@ mod tests {
 
     #[test]
     fn types() {
-        let src = "str char byte tup int  float bool void";
+        let src = "str char byte tup int  float bool void return";
         let mut lexer = Token::lexer(&src);
 
         assert_eq!(lexer.next(), Some(Ok(Token::TStr)));
@@ -271,6 +274,7 @@ mod tests {
         assert_eq!(lexer.next(), Some(Ok(Token::TFloat)));
         assert_eq!(lexer.next(), Some(Ok(Token::TBool)));
         assert_eq!(lexer.next(), Some(Ok(Token::Void)));
+        assert_eq!(lexer.next(), Some(Ok(Token::Return)));
         assert_eq!(lexer.next(), None);
     }
 
@@ -283,7 +287,7 @@ mod tests {
         "#;
         let mut lexer = Token::lexer(&src);
 
-        assert_eq!(lexer.next(), Some(Ok(Token::NewLine)));
+        // assert_eq!(lexer.next(), Some(Ok(Token::NewLine)));
         assert_eq!(
             lexer.next(),
             Some(Ok(Token::Ident("_someId123".to_string())))
@@ -295,9 +299,9 @@ mod tests {
         assert_eq!(lexer.next(), Some(Ok(Token::Char('c'))));
         assert_eq!(lexer.next(), Some(Ok(Token::Int(123))));
         assert_eq!(lexer.next(), Some(Ok(Token::Float(1.23e2))));
-        assert_eq!(lexer.next(), Some(Ok(Token::NewLine)));
+        // assert_eq!(lexer.next(), Some(Ok(Token::NewLine)));
         assert_eq!(lexer.next(), Some(Ok(Token::Ident("abc".to_string()))));
-        assert_eq!(lexer.next(), Some(Ok(Token::NewLine)));
+        // assert_eq!(lexer.next(), Some(Ok(Token::NewLine)));
         assert_eq!(lexer.next(), None);
     }
 }

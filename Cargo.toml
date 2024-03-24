@@ -21,6 +21,10 @@ opt-level = 3
 strip = true
 panic = "abort"
 
+[profile.dev]
+debug = true
+panic = "unwind"
+
 # Config for 'cargo dist'
 [workspace.metadata.dist]
 # The preferred cargo-dist version to use in CI (Cargo.toml SemVer syntax)

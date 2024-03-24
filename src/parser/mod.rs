@@ -12,6 +12,8 @@ use crate::typechecker::types::{FuncArg, FuncArgType};
 use crate::typechecker::{Type, TypeExpr};
 use logos::{Lexer, Logos};
 
+type ParseResult<T> = Result<T, ParseError>;
+
 macro_rules! current_token {
     ($self: expr) => {{
         if let Err(lex_err) = &$self.current {
@@ -29,14 +31,27 @@ macro_rules! matches_this {
         matches!($self.current, Ok($token))
     }};
 }
-
 /// TODO: Create a short cut of this.
 macro_rules! expect {
     ($self: expr, $token: pat, $err_type: expr) => {{
         if !matches!(current_token!($self), $token) {
-            return Err(ParseError::new($err_type, $self.lexer.span()));
+            let span = $self.lexer.span();
+            $self.next();
+            return Err(ParseError::new($err_type, span));
         } else {
             $self.next();
+        }
+
+        current_token!($self)
+    }};
+}
+
+macro_rules! expect_then_no_skip {
+    ($self: expr, $token: pat, $err_type: expr) => {{
+        if !matches!(current_token!($self), $token) {
+            let span = $self.lexer.span();
+            $self.next();
+            return Err(ParseError::new($err_type, span));
         }
 
         current_token!($self)
@@ -80,7 +95,6 @@ pub fn parse(filename: &str) -> Option<Vec<StmtNode>> {
             if let Err(err) = report_error(src.clone(), filename, err.to_string(), lexer.span()) {
                 eprintln!("Failed error reporting: {}", err);
             }
-            std::process::exit(1);
         }
     } else {
         return None;
@@ -96,16 +110,67 @@ pub fn parse(filename: &str) -> Option<Vec<StmtNode>> {
         had_error: false,
     };
     parser.parse();
-    return Some(parser.ast);
+
+    if parser.had_error {
+        None
+    } else {
+        Some(parser.ast)
+    }
 }
 
 impl Parser<'_> {
-    fn primary(&mut self) -> Result<ExprNode, ParseError> {
+    fn primary(&mut self) -> ParseResult<ExprNode> {
         let span = self.lexer.span();
         match &self.current {
-            Ok(Token::True) => Ok(ExprNode::Literal(Literal::Bool(true), span)),
-            Ok(Token::False) => Ok(ExprNode::Literal(Literal::Bool(false), span)),
-            Ok(Token::Ident(name)) => Ok(ExprNode::Ident(name.clone(), span)),
+            Ok(Token::True) => {
+                self.next();
+                Ok(ExprNode::Literal(Literal::Bool(true), span))
+            }
+            Ok(Token::False) => {
+                self.next();
+                Ok(ExprNode::Literal(Literal::Bool(false), span))
+            }
+            Ok(Token::Ident(name)) => {
+                let name = name.clone();
+                self.next();
+                Ok(ExprNode::Ident(name, span))
+            }
+            Ok(Token::Int(int)) => {
+                let int = *int;
+                self.next();
+                Ok(ExprNode::Literal(Literal::Int(int), span))
+            }
+            Ok(Token::Float(float)) => {
+                let float = *float;
+                self.next();
+                Ok(ExprNode::Literal(Literal::Float(float), span))
+            }
+            Ok(Token::Str(string)) => {
+                let string = string.clone();
+                self.next();
+                Ok(ExprNode::Literal(Literal::Str(string), span))
+            }
+            Ok(Token::Char(c)) => {
+                let c = *c;
+                self.next();
+                Ok(ExprNode::Literal(Literal::Char(c), span))
+            }
+            Ok(Token::LeftParen) => {
+                let span = self.lexer.span();
+                self.next();
+                let expr = self.expression()?;
+                expect!(
+                    self,
+                    Token::RightParen,
+                    ParseErrorType::ExpectedDiffTokenError(")".to_string())
+                );
+
+                Ok(ExprNode::Group(
+                    TypeExpr(Type::Unknown, None),
+                    Box::new(expr),
+                    span,
+                ))
+            }
             Ok(Token::LeftBrace) => {
                 let span = self.lexer.span();
                 self.next();
@@ -186,18 +251,20 @@ impl Parser<'_> {
                     body_span,
                 ))
             }
-            _ => Err(ParseError::new(
-                ParseErrorType::InvalidTokenError(current_token!(self).clone()),
-                self.lexer.span(),
-            )),
+            _ => {
+                let current_token = current_token!(self).clone();
+
+                self.next();
+
+                Err(ParseError::new(
+                    ParseErrorType::InvalidTokenError(current_token),
+                    self.lexer.span(),
+                ))
+            }
         }
     }
 
-    fn finish_call(
-        &mut self,
-        callee: ExprNode,
-        arg: Option<ExprNode>,
-    ) -> Result<ExprNode, ParseError> {
+    fn finish_call(&mut self, callee: ExprNode, arg: Option<ExprNode>) -> ParseResult<ExprNode> {
         let span = self.lexer.span();
 
         expect!(
@@ -247,7 +314,7 @@ impl Parser<'_> {
         ))
     }
 
-    fn call(&mut self, mut arg: Option<ExprNode>) -> Result<ExprNode, ParseError> {
+    fn call(&mut self, mut arg: Option<ExprNode>) -> ParseResult<ExprNode> {
         let mut expr = self.primary()?;
 
         loop {
@@ -286,21 +353,26 @@ impl Parser<'_> {
         Ok(expr)
     }
 
-    fn unary(&mut self) -> Result<ExprNode, ParseError> {
+    fn unary(&mut self) -> ParseResult<ExprNode> {
         let span = self.lexer.span();
+        let expr: ExprNode;
         if matches_this!(self, Token::Not) {
-            Ok(ExprNode::Unary(
+            self.next();
+
+            expr = ExprNode::Unary(
                 TypeExpr(Type::Bool, Some(span.clone())),
                 UnaryOp::NegBool,
                 Box::new(self.unary()?),
                 span,
-            ))
+            );
         } else {
-            Ok(self.call(None)?)
+            expr = self.call(None)?;
         }
+
+        Ok(expr)
     }
 
-    fn factor(&mut self) -> Result<ExprNode, ParseError> {
+    fn factor(&mut self) -> ParseResult<ExprNode> {
         let mut expr = self.unary()?;
 
         while matches_this!(self, Token::Div)
@@ -315,8 +387,11 @@ impl Parser<'_> {
             } else {
                 BinaryOp::Mul
             };
+
+            self.next();
+
             expr = ExprNode::Binary(
-                TypeExpr(Type::Bool, None),
+                TypeExpr(Type::Unknown, None),
                 Box::new(expr),
                 bin_op,
                 Box::new(self.unary()?),
@@ -327,7 +402,7 @@ impl Parser<'_> {
         Ok(expr)
     }
 
-    fn term(&mut self) -> Result<ExprNode, ParseError> {
+    fn term(&mut self) -> ParseResult<ExprNode> {
         let mut expr = self.factor()?;
 
         while matches_this!(self, Token::Minus) || matches_this!(self, Token::Plus) {
@@ -337,8 +412,11 @@ impl Parser<'_> {
             } else {
                 BinaryOp::Add
             };
+
+            self.next();
+
             expr = ExprNode::Binary(
-                TypeExpr(Type::Bool, None),
+                TypeExpr(Type::Unknown, None),
                 Box::new(expr),
                 bin_op,
                 Box::new(self.factor()?),
@@ -349,7 +427,7 @@ impl Parser<'_> {
         Ok(expr)
     }
 
-    fn comp_expr(&mut self) -> Result<ExprNode, ParseError> {
+    fn comp_expr(&mut self) -> ParseResult<ExprNode> {
         let mut expr = self.term()?;
 
         while matches_this!(self, Token::GT)
@@ -367,6 +445,9 @@ impl Parser<'_> {
             } else {
                 BinaryOp::LE
             };
+
+            self.next();
+
             expr = ExprNode::Binary(
                 TypeExpr(Type::Bool, None),
                 Box::new(expr),
@@ -379,7 +460,7 @@ impl Parser<'_> {
         Ok(expr)
     }
 
-    fn eq_expr(&mut self) -> Result<ExprNode, ParseError> {
+    fn eq_expr(&mut self) -> ParseResult<ExprNode> {
         let mut expr = self.comp_expr()?;
 
         while matches_this!(self, Token::DEq) || matches_this!(self, Token::NotEq) {
@@ -389,6 +470,9 @@ impl Parser<'_> {
             } else {
                 BinaryOp::NEq
             };
+
+            self.next();
+
             expr = ExprNode::Binary(
                 TypeExpr(Type::Bool, None),
                 Box::new(expr),
@@ -401,11 +485,14 @@ impl Parser<'_> {
         Ok(expr)
     }
 
-    fn and_expr(&mut self) -> Result<ExprNode, ParseError> {
+    fn and_expr(&mut self) -> ParseResult<ExprNode> {
         let mut expr = self.eq_expr()?;
 
         while matches_this!(self, Token::And) {
             let span = self.lexer.span();
+
+            self.next();
+
             expr = ExprNode::Binary(
                 TypeExpr(Type::Bool, None),
                 Box::new(expr),
@@ -418,11 +505,14 @@ impl Parser<'_> {
         Ok(expr)
     }
 
-    fn or_expr(&mut self) -> Result<ExprNode, ParseError> {
+    fn or_expr(&mut self) -> ParseResult<ExprNode> {
         let mut expr = self.and_expr()?;
 
         while matches_this!(self, Token::Or) {
             let span = self.lexer.span();
+
+            self.next();
+
             expr = ExprNode::Binary(
                 TypeExpr(Type::Bool, None),
                 Box::new(expr),
@@ -435,7 +525,7 @@ impl Parser<'_> {
         Ok(expr)
     }
 
-    fn assignment(&mut self) -> Result<ExprNode, ParseError> {
+    fn assignment(&mut self) -> ParseResult<ExprNode> {
         let expr = self.or_expr()?;
         let span = self.lexer.span();
 
@@ -458,18 +548,19 @@ impl Parser<'_> {
         }
     }
 
-    fn expression(&mut self) -> Result<ExprNode, ParseError> {
+    fn expression(&mut self) -> ParseResult<ExprNode> {
         self.assignment()
     }
 
-    fn expr_statement(&mut self) -> Result<StmtNode, ParseError> {
+    fn expr_statement(&mut self) -> ParseResult<StmtNode> {
         let expr = self.expression()?;
         Ok(StmtNode::Expr(expr))
     }
-    fn statement(&mut self) -> Result<StmtNode, ParseError> {
+    fn statement(&mut self) -> ParseResult<StmtNode> {
         let span = self.lexer.span();
 
         match self.current {
+            Ok(Token::Let) => self.var_declaration(),
             Ok(Token::While) => {
                 self.next();
 
@@ -485,28 +576,6 @@ impl Parser<'_> {
 
                 Ok(StmtNode::While(cond, body, span))
             }
-            Ok(Token::If) => {
-                self.next();
-
-                let cond = self.expression()?;
-
-                expect!(
-                    self,
-                    Token::Then,
-                    ParseErrorType::ExpectedDiffTokenError("'then'".to_string())
-                );
-
-                let then_body = self.expression()?;
-
-                let else_body = if matches_this!(self, Token::Else) {
-                    self.next();
-                    Some(self.expression()?)
-                } else {
-                    None
-                };
-
-                Ok(StmtNode::If(cond, then_body, else_body, span))
-            }
             Ok(Token::Continue) => {
                 self.next();
                 Ok(StmtNode::Continue(span))
@@ -515,16 +584,28 @@ impl Parser<'_> {
                 self.next();
                 Ok(StmtNode::Break(span))
             }
+            Ok(Token::Return) => {
+                self.next();
+
+                let expr = if matches_this!(self, Token::Void) {
+                    self.next();
+                    None
+                } else {
+                    Some(self.expression()?)
+                };
+
+                Ok(StmtNode::Return(expr, span))
+            }
             _ => self.expr_statement(),
         }
     }
 
-    fn var_declaration(&mut self) -> Result<StmtNode, ParseError> {
+    fn var_declaration(&mut self) -> ParseResult<StmtNode> {
         let span = self.lexer.span();
 
         self.next();
 
-        let Token::Ident(name) = expect!(
+        let Token::Ident(name) = expect_then_no_skip!(
             self,
             Token::Ident(..),
             ParseErrorType::ExpectedDiffTokenError("an identifier".to_string())
@@ -533,6 +614,8 @@ impl Parser<'_> {
         };
 
         let name = name.clone();
+
+        self.next();
 
         let var_type = if matches_this!(self, Token::Colon) {
             self.next();
@@ -552,7 +635,7 @@ impl Parser<'_> {
         Ok(StmtNode::Assign(var_type, name, value, span))
     }
 
-    fn get_params(&mut self) -> Result<Vec<FuncArg>, ParseError> {
+    fn get_params(&mut self) -> ParseResult<Vec<FuncArg>> {
         expect!(
             self,
             Token::LeftParen,
@@ -562,7 +645,7 @@ impl Parser<'_> {
         let mut params = Vec::<FuncArg>::new();
 
         while !matches_this!(self, Token::RightParen) {
-            let Token::Ident(param_name) = expect!(
+            let Token::Ident(param_name) = expect_then_no_skip!(
                 self,
                 Token::Ident(..),
                 ParseErrorType::ExpectedDiffTokenError("an identifier".to_string())
@@ -570,6 +653,8 @@ impl Parser<'_> {
                 unreachable!()
             };
             let param_name = param_name.clone();
+
+            self.next();
 
             expect!(
                 self,
@@ -604,12 +689,12 @@ impl Parser<'_> {
         Ok(params)
     }
 
-    fn func_declaration(&mut self) -> Result<StmtNode, ParseError> {
+    fn func_declaration(&mut self) -> ParseResult<StmtNode> {
         let span = self.lexer.span();
 
         self.next();
 
-        let Token::Ident(name) = expect!(
+        let Token::Ident(name) = expect_then_no_skip!(
             self,
             Token::Ident(..),
             ParseErrorType::ExpectedDiffTokenError("an identifier".to_string())
@@ -617,6 +702,8 @@ impl Parser<'_> {
             unreachable!()
         };
         let name = name.clone();
+
+        self.next();
 
         // TODO: Genetic check here.
 
@@ -649,20 +736,50 @@ impl Parser<'_> {
         Ok(func)
     }
 
-    fn declaration(&mut self) -> Result<StmtNode, ParseError> {
+    fn declaration(&mut self) -> ParseResult<StmtNode> {
         let current = current_token!(self);
         match current {
-            Token::Let => self.var_declaration(),
+            Token::LeftBrace => {
+                let span = self.lexer.span();
+                self.next();
+                let mut block = Vec::<StmtNode>::new();
+
+                while !matches_this!(self, Token::RightBrace) {
+                    block.push(self.declaration()?);
+                }
+
+                Ok(StmtNode::Block(TypeExpr(Type::Unknown, None), block, span))
+            }
             Token::Func => self.func_declaration(),
+            Token::If => {
+                let span = self.lexer.span();
+                self.next();
+                let cond = self.expression()?;
+
+                expect!(
+                    self,
+                    Token::Then,
+                    ParseErrorType::ExpectedDiffTokenError("'then'".to_string())
+                );
+
+                let then_body = self.declaration()?;
+
+                let else_body = if matches_this!(self, Token::Else) {
+                    self.next();
+                    Some(Box::new(self.declaration()?))
+                } else {
+                    None
+                };
+
+                Ok(StmtNode::If(cond, Box::new(then_body), else_body, span))
+            }
             _ => {
                 let result = self.statement();
 
                 expect!(
                     self,
                     Token::NewLine,
-                    ParseErrorType::ExpectedDiffTokenError(
-                        "Expected a new line or ';'".to_string()
-                    )
+                    ParseErrorType::ExpectedDiffTokenError("a new line or ';'".to_string())
                 );
 
                 return result;
@@ -670,7 +787,7 @@ impl Parser<'_> {
         }
     }
 
-    fn get_type_expr(&mut self) -> Result<TypeExpr, ParseError> {
+    fn get_type_expr(&mut self) -> ParseResult<TypeExpr> {
         if matches_this!(self, Token::LeftBrak) {
             // List
             self.next();
@@ -811,5 +928,50 @@ impl Parser<'_> {
         } else {
             self.current = token.unwrap();
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::fs::File;
+    use std::io::{Read, Write};
+
+    use super::*;
+
+    fn test(test_name: &str) {
+        let Some(ast) = parse(&format!("./src/parser/test/{}.nln", test_name)) else {
+            panic!("failed")
+        };
+
+        let ast = format!("{:#?}", ast);
+        let mut f = File::open(&format!("./src/parser/test/{}-result.txt", test_name)).unwrap();
+        let mut expected = String::new();
+        f.read_to_string(&mut expected).unwrap();
+
+        assert_eq!(ast, expected);
+    }
+
+    #[test]
+    fn math_expr() {
+        test("math-expr");
+    }
+
+    #[test]
+    fn statement() {
+        let test_name = "stmt";
+        let Some(ast) = parse(&format!("./src/parser/test/{}.nln", test_name)) else {
+            panic!("failed")
+        };
+
+        let ast = format!("{:#?}", ast);
+
+        let mut f = File::create(&format!("./src/parser/test/{}-result.txt", test_name)).unwrap();
+        f.write(ast.as_bytes()).unwrap();
+
+        // let mut f = File::open(&format!("./src/parser/test/{}-result.txt", test_name)).unwrap();
+        // let mut expected = String::new();
+        // f.read_to_string(&mut expected).unwrap();
+
+        // assert_eq!(ast, expected);
     }
 }
