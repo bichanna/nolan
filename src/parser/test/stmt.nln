@@ -19,6 +19,6 @@ return void;
 return 123.321;
 
 func some_func(arg1: int, arg2: str, def: float = 1.23, abc: char...): int {
-    let result = 1.23;
+    let result = if def == 1.23 then "hello" else "world";
     let abc = result;
 }

@@ -247,6 +247,35 @@ impl Parser<'_> {
                     body_span,
                 ))
             }
+            Ok(Token::If) => {
+                self.next();
+
+                let cond = self.expression()?;
+
+                expect!(
+                    self,
+                    Token::Then,
+                    ParseErrorType::ExpectedDiffTokenError("'then'".to_string())
+                );
+
+                let then = self.expression()?;
+
+                expect!(
+                    self,
+                    Token::Else,
+                    ParseErrorType::ExpectedDiffTokenError("'else'".to_string())
+                );
+
+                let els = self.expression()?;
+
+                Ok(ExprNode::If(
+                    TypeExpr(Type::Unknown, None),
+                    Box::new(cond),
+                    Box::new(then),
+                    Box::new(els),
+                    span,
+                ))
+            }
             _ => {
                 let current_token = current_token!(self).clone();
                 let span = self.lexer.span();

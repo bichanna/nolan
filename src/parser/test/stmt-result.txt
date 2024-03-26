@@ -232,11 +232,42 @@
                             None,
                         ),
                         "result",
-                        Literal(
-                            Float(
-                                1.23,
+                        If(
+                            TypeExpr(
+                                Unknown,
+                                None,
                             ),
-                            310..314,
+                            Binary(
+                                TypeExpr(
+                                    Bool,
+                                    None,
+                                ),
+                                Ident(
+                                    "def",
+                                    313..316,
+                                ),
+                                Eq,
+                                Literal(
+                                    Float(
+                                        1.23,
+                                    ),
+                                    320..324,
+                                ),
+                                317..319,
+                            ),
+                            Literal(
+                                Str(
+                                    "hello",
+                                ),
+                                330..337,
+                            ),
+                            Literal(
+                                Str(
+                                    "world",
+                                ),
+                                343..350,
+                            ),
+                            310..312,
                         ),
                         297..300,
                     ),
@@ -248,9 +279,9 @@
                         "abc",
                         Ident(
                             "result",
-                            330..336,
+                            366..372,
                         ),
-                        320..323,
+                        356..359,
                     ),
                 ],
                 291..292,
