@@ -243,7 +243,7 @@ impl Parser<'_> {
 
                 // Get body.
                 let body_span = self.lexer.span();
-                let body = self.expression()?;
+                let body = self.declaration()?;
 
                 Ok(ExprNode::Func(
                     TypeExpr(Type::Func(params, Box::new(return_type)), None),
@@ -253,12 +253,13 @@ impl Parser<'_> {
             }
             _ => {
                 let current_token = current_token!(self).clone();
+                let span = self.lexer.span();
 
                 self.next();
 
                 Err(ParseError::new(
                     ParseErrorType::InvalidTokenError(current_token),
-                    self.lexer.span(),
+                    span,
                 ))
             }
         }
@@ -665,8 +666,14 @@ impl Parser<'_> {
             let type_expr = self.get_type_expr()?;
 
             let param_type = match self.current {
-                Ok(Token::Eq) => FuncArgType::Default(self.expression()?),
-                Ok(Token::ThreeDot) => FuncArgType::VarArgs,
+                Ok(Token::Eq) => {
+                    self.next();
+                    FuncArgType::Default(self.expression()?)
+                }
+                Ok(Token::ThreeDot) => {
+                    self.next();
+                    FuncArgType::VarArgs
+                }
                 _ => FuncArgType::Positional,
             };
 
@@ -721,7 +728,7 @@ impl Parser<'_> {
 
         // Get body.
         let body_span = self.lexer.span();
-        let body = self.expression()?;
+        let body = self.declaration()?;
 
         let func = StmtNode::Func(
             name,
@@ -747,6 +754,12 @@ impl Parser<'_> {
                 while !matches_this!(self, Token::RightBrace) {
                     block.push(self.declaration()?);
                 }
+
+                expect!(
+                    self,
+                    Token::RightBrace,
+                    ParseErrorType::ExpectedDiffTokenError("}".to_string())
+                );
 
                 Ok(StmtNode::Block(TypeExpr(Type::Unknown, None), block, span))
             }
@@ -876,12 +889,15 @@ impl Parser<'_> {
             Ok(TypeExpr(Type::Func(args, Box::new(return_type)), type_span))
         } else {
             let current = current_token!(self);
+            let span = self.lexer.span();
             if let Some(t) = Type::from(current) {
-                Ok(TypeExpr(t, Some(self.lexer.span())))
+                self.next();
+                Ok(TypeExpr(t, Some(span)))
             } else {
+                self.next();
                 Err(ParseError::new(
                     ParseErrorType::InvalidTypeError(format!("{:?}", current_token!(self))),
-                    self.lexer.span(),
+                    span,
                 ))
             }
         }
@@ -951,14 +967,7 @@ mod tests {
         assert_eq!(ast, expected);
     }
 
-    #[test]
-    fn math_expr() {
-        test("math-expr");
-    }
-
-    #[test]
-    fn statement() {
-        let test_name = "stmt";
+    fn write(test_name: &str) {
         let Some(ast) = parse(&format!("./src/parser/test/{}.nln", test_name)) else {
             panic!("failed")
         };
@@ -967,11 +976,15 @@ mod tests {
 
         let mut f = File::create(&format!("./src/parser/test/{}-result.txt", test_name)).unwrap();
         f.write(ast.as_bytes()).unwrap();
+    }
 
-        // let mut f = File::open(&format!("./src/parser/test/{}-result.txt", test_name)).unwrap();
-        // let mut expected = String::new();
-        // f.read_to_string(&mut expected).unwrap();
+    #[test]
+    fn math_expr() {
+        test("math-expr");
+    }
 
-        // assert_eq!(ast, expected);
+    #[test]
+    fn statement() {
+        test("stmt");
     }
 }

@@ -60,7 +60,7 @@ pub enum ExprNode {
     If(TypeExpr, Box<Self>, Box<Self>, Box<Self>, Span),
 
     /// A function without a name but with a body.
-    Func(TypeExpr, Box<Self>, Span),
+    Func(TypeExpr, Box<StmtNode>, Span),
 
     /// Apply a function with give arguments.
     Apply(TypeExpr, Box<Self>, Vec<Self>, Span),

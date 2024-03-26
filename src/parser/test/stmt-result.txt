@@ -147,4 +147,114 @@
         ),
         199..205,
     ),
+    Func(
+        "some_func",
+        Func(
+            TypeExpr(
+                Func(
+                    [
+                        FuncArg {
+                            name: Some(
+                                "arg1",
+                            ),
+                            type_expr: TypeExpr(
+                                Integer,
+                                Some(
+                                    237..240,
+                                ),
+                            ),
+                            arg_type: Positional,
+                        },
+                        FuncArg {
+                            name: Some(
+                                "arg2",
+                            ),
+                            type_expr: TypeExpr(
+                                String,
+                                Some(
+                                    248..251,
+                                ),
+                            ),
+                            arg_type: Positional,
+                        },
+                        FuncArg {
+                            name: Some(
+                                "def",
+                            ),
+                            type_expr: TypeExpr(
+                                Float,
+                                Some(
+                                    258..263,
+                                ),
+                            ),
+                            arg_type: Default(
+                                Literal(
+                                    Float(
+                                        1.23,
+                                    ),
+                                    266..270,
+                                ),
+                            ),
+                        },
+                        FuncArg {
+                            name: Some(
+                                "abc",
+                            ),
+                            type_expr: TypeExpr(
+                                Char,
+                                Some(
+                                    277..281,
+                                ),
+                            ),
+                            arg_type: VarArgs,
+                        },
+                    ],
+                    TypeExpr(
+                        Integer,
+                        Some(
+                            287..290,
+                        ),
+                    ),
+                ),
+                None,
+            ),
+            Block(
+                TypeExpr(
+                    Unknown,
+                    None,
+                ),
+                [
+                    Assign(
+                        TypeExpr(
+                            Unknown,
+                            None,
+                        ),
+                        "result",
+                        Literal(
+                            Float(
+                                1.23,
+                            ),
+                            310..314,
+                        ),
+                        297..300,
+                    ),
+                    Assign(
+                        TypeExpr(
+                            Unknown,
+                            None,
+                        ),
+                        "abc",
+                        Ident(
+                            "result",
+                            330..336,
+                        ),
+                        320..323,
+                    ),
+                ],
+                291..292,
+            ),
+            291..292,
+        ),
+        216..220,
+    ),
 ]
