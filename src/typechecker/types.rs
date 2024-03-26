@@ -1,3 +1,5 @@
+use std::fmt::Display;
+
 use logos::Span;
 
 use crate::lexer::Token;
@@ -37,6 +39,49 @@ impl Type {
     }
 }
 
+impl Display for Type {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let type_str = match self {
+            Type::Integer => "int",
+            Type::Float => "float",
+            Type::String => "str",
+            Type::Char => "char",
+            Type::Byte => "byte",
+            Type::Bool => "bool",
+            Type::Void => "void",
+            Type::List(t) => &format!("[]{}", t),
+            Type::Tuple(ts) => &format!(
+                "tup({})",
+                ts.iter()
+                    .map(|t| format!("{}", t))
+                    .collect::<Vec<String>>()
+                    .join(", ")
+            ),
+            Type::Func(args, rt) => &format!(
+                "\\({}){}",
+                args.iter()
+                    .map(|arg| format!("{}", arg))
+                    .collect::<Vec<String>>()
+                    .join(", "),
+                if let Type::Void = rt.0 {
+                    "".to_string()
+                } else {
+                    format!(": {}", rt.0)
+                }
+            ),
+            Type::Unknown => unimplemented!(),
+        };
+
+        write!(f, "{}", type_str)
+    }
+}
+
+impl Display for TypeExpr {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.0)
+    }
+}
+
 #[derive(Clone, Debug, PartialEq)]
 pub struct FuncArg {
     pub name: Option<String>,
@@ -66,5 +111,23 @@ impl FuncArg {
             type_expr,
             arg_type,
         }
+    }
+}
+
+impl Display for FuncArg {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}{}", self.type_expr, self.arg_type)
+    }
+}
+
+impl Display for FuncArgType {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let res = match self {
+            Self::Positional => "",
+            Self::VarArgs => "...",
+            Self::Default(_) => "=",
+        };
+
+        write!(f, "{}", res)
     }
 }
