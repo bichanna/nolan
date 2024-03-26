@@ -42,22 +42,22 @@ impl Type {
 impl Display for Type {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let type_str = match self {
-            Type::Integer => "int",
-            Type::Float => "float",
-            Type::String => "str",
-            Type::Char => "char",
-            Type::Byte => "byte",
-            Type::Bool => "bool",
-            Type::Void => "void",
-            Type::List(t) => &format!("[]{}", t),
-            Type::Tuple(ts) => &format!(
+            Type::Integer => "int".to_string(),
+            Type::Float => "float".to_string(),
+            Type::String => "str".to_string(),
+            Type::Char => "char".to_string(),
+            Type::Byte => "byte".to_string(),
+            Type::Bool => "bool".to_string(),
+            Type::Void => "void".to_string(),
+            Type::List(t) => format!("[]{}", t),
+            Type::Tuple(ts) => format!(
                 "tup({})",
                 ts.iter()
                     .map(|t| format!("{}", t))
                     .collect::<Vec<String>>()
                     .join(", ")
             ),
-            Type::Func(args, rt) => &format!(
+            Type::Func(args, rt) => format!(
                 "\\({}){}",
                 args.iter()
                     .map(|arg| format!("{}", arg))
