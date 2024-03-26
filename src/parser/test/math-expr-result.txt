@@ -11,10 +11,6 @@
                     None,
                 ),
                 Group(
-                    TypeExpr(
-                        Unknown,
-                        None,
-                    ),
                     Binary(
                         TypeExpr(
                             Unknown,

@@ -32,26 +32,28 @@
             ),
             41..42,
         ),
-        Apply(
-            TypeExpr(
-                Unknown,
-                Some(
-                    62..63,
-                ),
-            ),
-            Ident(
-                "println",
-                55..62,
-            ),
-            [
-                Literal(
-                    Str(
-                        "Hello world",
+        Expr(
+            Apply(
+                TypeExpr(
+                    Unknown,
+                    Some(
+                        62..63,
                     ),
-                    63..76,
                 ),
-            ],
-            62..63,
+                Ident(
+                    "println",
+                    55..62,
+                ),
+                [
+                    Literal(
+                        Str(
+                            "Hello world",
+                        ),
+                        63..76,
+                    ),
+                ],
+                62..63,
+            ),
         ),
         26..31,
     ),

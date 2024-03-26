@@ -51,7 +51,7 @@ pub enum ExprNode {
     Unary(TypeExpr, UnaryOp, Box<Self>, Span),
 
     /// Grouping expression.
-    Group(TypeExpr, Box<Self>, Span),
+    Group(Box<Self>, Span),
 
     /// A block of expressions. The last expression in the block is the overall value of the type and the return value of the whole block.
     Block(TypeExpr, Vec<StmtNode>, Span),
@@ -86,7 +86,7 @@ pub enum StmtNode {
     Assign(TypeExpr, String, ExprNode, Span),
 
     /// While loop.
-    While(ExprNode, ExprNode, Span),
+    While(ExprNode, Box<StmtNode>, Span),
 
     /// If-then-else statement.
     If(ExprNode, Box<StmtNode>, Option<Box<StmtNode>>, Span),

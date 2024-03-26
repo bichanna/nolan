@@ -165,11 +165,7 @@ impl Parser<'_> {
                     ParseErrorType::ExpectedDiffTokenError(")".to_string())
                 );
 
-                Ok(ExprNode::Group(
-                    TypeExpr(Type::Unknown, None),
-                    Box::new(expr),
-                    span,
-                ))
+                Ok(ExprNode::Group(Box::new(expr), span))
             }
             Ok(Token::LeftBrace) => {
                 let span = self.lexer.span();
@@ -573,9 +569,9 @@ impl Parser<'_> {
                     ParseErrorType::ExpectedDiffTokenError("'then'".to_string())
                 );
 
-                let body = self.expression()?;
+                let body = self.statement()?;
 
-                Ok(StmtNode::While(cond, body, span))
+                Ok(StmtNode::While(cond, Box::new(body), span))
             }
             Ok(Token::Continue) => {
                 self.next();
