@@ -53,8 +53,8 @@ impl<'a> Checker<'a> {
             StmtNode::Assign(t, name, value, span) => self.stmt_assign(t, name, value, span),
             StmtNode::While(cond, body, span) => self.stmt_while(cond, body, span),
             StmtNode::If(cond, then_body, els, span) => self.stmt_if(cond, then_body, els, span),
-            StmtNode::Break(_) => {}
-            StmtNode::Continue(_) => {}
+            StmtNode::Break(span) => self.stmt_break(span),
+            StmtNode::Continue(span) => self.stmt_continue(span),
             StmtNode::Return(expr, span) => self.stmt_return(expr, span),
             StmtNode::Func(name, func, span) => self.stmt_func(name, func, span),
         }
@@ -143,6 +143,14 @@ impl<'a> Checker<'a> {
         els: &Option<Box<StmtNode>>,
         span: &Span,
     ) {
+        todo!()
+    }
+
+    fn stmt_break(&mut self, span: &Span) {
+        todo!()
+    }
+
+    fn stmt_continue(&mut self, span: &Span) {
         todo!()
     }
 
