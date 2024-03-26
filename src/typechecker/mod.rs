@@ -1,9 +1,12 @@
 pub mod error;
 pub mod types;
 
+use std::fs;
+
 use logos::Span;
 
-use crate::parser::ast::{BinaryOp, ExprNode, StmtNode, UnaryOp};
+use crate::error::report_error;
+use crate::parser::ast::{BinaryOp, ExprNode, Literal, StmtNode, UnaryOp};
 use crate::typechecker::error::{SemanticError, SemanticErrorType};
 pub use crate::typechecker::types::{Type, TypeExpr};
 
@@ -44,9 +47,9 @@ struct Checker<'a> {
     scope_depth: u32,
 }
 
-pub fn check(ast: &Vec<StmtNode>) {
+pub fn check(filename: &str, ast: &Vec<StmtNode>) {
     let mut checker = Checker::new();
-    checker.check(ast);
+    checker.check(filename, ast);
 }
 
 impl<'a> Checker<'a> {
@@ -58,51 +61,59 @@ impl<'a> Checker<'a> {
         }
     }
 
-    fn check(&mut self, ast: &Vec<StmtNode>) {
+    fn check(&mut self, filename: &str, ast: &Vec<StmtNode>) {
         for node in ast {
-            let res = self.check_stmt(node);
-        }
-    }
-
-    fn check_stmt(&mut self, stmt: &StmtNode) -> CheckResult<()> {
-        match stmt {
-            StmtNode::Expr(expr) => self.check_expr(expr)?,
-            StmtNode::Block(t, block, _) => {
-                for node in block {
-                    self.check_stmt(node)?;
+            if let Err(err) = self.check_stmt(node) {
+                let src =
+                    fs::read_to_string(filename).expect(&format!("No file named '{}'", filename));
+                if let Err(err) = report_error(src, filename, err.to_string(), err.span) {
+                    eprintln!("Failed error reporting: {}", err);
                 }
             }
-            StmtNode::Assign(t, name, value, span) => self.stmt_assign(t, name, value, span)?,
-            StmtNode::While(cond, body, span) => self.stmt_while(cond, body, span)?,
-            StmtNode::If(cond, then_body, els, span) => self.stmt_if(cond, then_body, els, span)?,
-            StmtNode::Break(span) => self.stmt_break(span)?,
-            StmtNode::Continue(span) => self.stmt_continue(span)?,
-            StmtNode::Return(expr, span) => self.stmt_return(expr, span)?,
-            StmtNode::Func(name, func, span) => self.stmt_func(name, func, span)?,
         }
-        Ok(())
     }
 
-    fn check_expr(&mut self, expr: &ExprNode) -> CheckResult<()> {
-        match expr {
-            ExprNode::Ident(name, span) => self.expr_ident(name, span)?,
-            ExprNode::Literal(_, _) => {}
-            ExprNode::Binary(t, left, op, right, span) => {
-                self.expr_binary(t, left, op, right, span)?
+    fn check_stmt(&mut self, stmt: &StmtNode) -> CheckResult<Type> {
+        match stmt {
+            StmtNode::Expr(expr) => Ok(self.check_expr(expr)?),
+            StmtNode::Block(t, block, span) => Ok(self.stmt_block(t, block, span)?),
+            StmtNode::Assign(t, name, value, span) => Ok(self.stmt_assign(t, name, value, span)?),
+            StmtNode::While(cond, body, span) => Ok(self.stmt_while(cond, body, span)?),
+            StmtNode::If(cond, then_body, els, span) => {
+                Ok(self.stmt_if(cond, then_body, els, span)?)
             }
-            ExprNode::Unary(t, op, right, span) => self.expr_unary(t, op, right, span)?,
-            ExprNode::Group(expr, _) => self.check_expr(expr)?,
-            ExprNode::Block(t, block, span) => self.expr_block(t, block, span)?,
-            ExprNode::If(t, cond, then, els, span) => self.expr_if(t, cond, then, els, span)?,
-            ExprNode::Func(t, body, span) => self.expr_func(t, body, span)?,
-            ExprNode::Apply(t, callee, args, span) => self.expr_apply(t, callee, args, span)?,
-            ExprNode::Index(t, indexed, index, span) => self.expr_index(t, indexed, index, span)?,
-            ExprNode::Assign(left, right, span) => self.expr_assign(left, right, span)?,
+            StmtNode::Break(span) => Ok(self.stmt_break(span)?),
+            StmtNode::Continue(span) => Ok(self.stmt_continue(span)?),
+            StmtNode::Return(expr, span) => Ok(self.stmt_return(expr, span)?),
+            StmtNode::Func(name, func, span) => Ok(self.stmt_func(name, func, span)?),
         }
-        Ok(())
     }
 
-    fn expr_ident(&mut self, name: &String, span: &Span) -> CheckResult<()> {
+    fn check_expr(&mut self, expr: &ExprNode) -> CheckResult<Type> {
+        match expr {
+            ExprNode::Ident(name, span) => Ok(self.expr_ident(name, span)?),
+            ExprNode::Literal(literal, _) => Ok(self.expr_literal(literal)?),
+            ExprNode::Binary(t, left, op, right, span) => {
+                Ok(self.expr_binary(t, left, op, right, span)?)
+            }
+            ExprNode::Unary(t, op, right, span) => Ok(self.expr_unary(t, op, right, span)?),
+            ExprNode::Group(expr, _) => Ok(self.check_expr(expr)?),
+            ExprNode::Block(t, block, span) => Ok(self.expr_block(t, block, span)?),
+            ExprNode::If(t, cond, then, els, span) => Ok(self.expr_if(t, cond, then, els, span)?),
+            ExprNode::Func(t, body, span) => Ok(self.expr_func(t, body, span)?),
+            ExprNode::Apply(t, callee, args, span) => Ok(self.expr_apply(t, callee, args, span)?),
+            ExprNode::Index(t, indexed, index, span) => {
+                Ok(self.expr_index(t, indexed, index, span)?)
+            }
+            ExprNode::Assign(left, right, span) => Ok(self.expr_assign(left, right, span)?),
+        }
+    }
+
+    fn expr_ident(&mut self, name: &String, span: &Span) -> CheckResult<Type> {
+        todo!()
+    }
+
+    fn expr_literal(&mut self, literal: &Literal) -> CheckResult<Type> {
         todo!()
     }
 
@@ -113,7 +124,7 @@ impl<'a> Checker<'a> {
         op: &BinaryOp,
         right: &ExprNode,
         span: &Span,
-    ) -> CheckResult<()> {
+    ) -> CheckResult<Type> {
         todo!()
     }
 
@@ -123,15 +134,20 @@ impl<'a> Checker<'a> {
         op: &UnaryOp,
         right: &ExprNode,
         span: &Span,
-    ) -> CheckResult<()> {
+    ) -> CheckResult<Type> {
         todo!()
     }
 
-    fn expr_block(&mut self, t: &TypeExpr, block: &Vec<StmtNode>, span: &Span) -> CheckResult<()> {
+    fn expr_block(
+        &mut self,
+        t: &TypeExpr,
+        block: &Vec<StmtNode>,
+        span: &Span,
+    ) -> CheckResult<Type> {
         todo!()
     }
 
-    fn expr_func(&mut self, t: &TypeExpr, body: &StmtNode, span: &Span) -> CheckResult<()> {
+    fn expr_func(&mut self, t: &TypeExpr, body: &StmtNode, span: &Span) -> CheckResult<Type> {
         todo!()
     }
 
@@ -142,7 +158,7 @@ impl<'a> Checker<'a> {
         then: &ExprNode,
         els: &ExprNode,
         span: &Span,
-    ) -> CheckResult<()> {
+    ) -> CheckResult<Type> {
         todo!()
     }
 
@@ -152,7 +168,7 @@ impl<'a> Checker<'a> {
         callee: &ExprNode,
         args: &Vec<ExprNode>,
         span: &Span,
-    ) -> CheckResult<()> {
+    ) -> CheckResult<Type> {
         todo!()
     }
 
@@ -162,11 +178,20 @@ impl<'a> Checker<'a> {
         indexed: &ExprNode,
         index: &ExprNode,
         span: &Span,
-    ) -> CheckResult<()> {
+    ) -> CheckResult<Type> {
         todo!()
     }
 
-    fn expr_assign(&mut self, left: &ExprNode, right: &ExprNode, span: &Span) -> CheckResult<()> {
+    fn expr_assign(&mut self, left: &ExprNode, right: &ExprNode, span: &Span) -> CheckResult<Type> {
+        todo!()
+    }
+
+    fn stmt_block(
+        &mut self,
+        t: &TypeExpr,
+        block: &Vec<StmtNode>,
+        span: &Span,
+    ) -> CheckResult<Type> {
         todo!()
     }
 
@@ -176,11 +201,11 @@ impl<'a> Checker<'a> {
         name: &String,
         value: &ExprNode,
         span: &Span,
-    ) -> CheckResult<()> {
+    ) -> CheckResult<Type> {
         todo!()
     }
 
-    fn stmt_while(&mut self, cond: &ExprNode, body: &StmtNode, span: &Span) -> CheckResult<()> {
+    fn stmt_while(&mut self, cond: &ExprNode, body: &StmtNode, span: &Span) -> CheckResult<Type> {
         todo!()
     }
 
@@ -190,23 +215,23 @@ impl<'a> Checker<'a> {
         then_body: &StmtNode,
         els: &Option<Box<StmtNode>>,
         span: &Span,
-    ) -> CheckResult<()> {
+    ) -> CheckResult<Type> {
         todo!()
     }
 
-    fn stmt_break(&mut self, span: &Span) -> CheckResult<()> {
+    fn stmt_break(&mut self, span: &Span) -> CheckResult<Type> {
         todo!()
     }
 
-    fn stmt_continue(&mut self, span: &Span) -> CheckResult<()> {
+    fn stmt_continue(&mut self, span: &Span) -> CheckResult<Type> {
         todo!()
     }
 
-    fn stmt_return(&mut self, expr: &Option<ExprNode>, span: &Span) -> CheckResult<()> {
+    fn stmt_return(&mut self, expr: &Option<ExprNode>, span: &Span) -> CheckResult<Type> {
         todo!()
     }
 
-    fn stmt_func(&mut self, name: &String, func: &ExprNode, span: &Span) -> CheckResult<()> {
+    fn stmt_func(&mut self, name: &String, func: &ExprNode, span: &Span) -> CheckResult<Type> {
         todo!()
     }
 
