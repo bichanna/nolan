@@ -4,7 +4,7 @@ while asdfasdf < 10 then
     println("Hello world");
 
 if aasdfasdfasd > 10 then
-    println(a);
+    a.println();
 else if true then
     123;
 else
