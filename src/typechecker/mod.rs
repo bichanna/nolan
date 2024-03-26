@@ -1,12 +1,8 @@
-mod scope;
 pub mod types;
-
-use std::collections::HashMap;
 
 use logos::Span;
 
 use crate::parser::ast::{BinaryOp, ExprNode, StmtNode, UnaryOp};
-use crate::typechecker::scope::Scope;
 pub use crate::typechecker::types::{Type, TypeExpr};
 
 #[derive(Default)]
@@ -16,10 +12,26 @@ enum FuncType<'a> {
     Func(&'a TypeExpr),
 }
 
+struct Local<'a> {
+    name: &'a String,
+    depth: u32,
+    type_expr: &'a TypeExpr,
+}
+
+impl<'a> Local<'a> {
+    fn new(name: &'a String, depth: u32, type_expr: &'a TypeExpr) -> Self {
+        Self {
+            name,
+            depth,
+            type_expr,
+        }
+    }
+}
+
 struct Checker<'a> {
-    scopes: Vec<Scope<'a>>,
-    locals: HashMap<&'a String, (i32, &'a TypeExpr)>,
+    locals: Vec<Local<'a>>,
     func_type: FuncType<'a>,
+    scope_depth: u32,
 }
 
 pub fn check(ast: &Vec<StmtNode>) {
@@ -30,9 +42,9 @@ pub fn check(ast: &Vec<StmtNode>) {
 impl<'a> Checker<'a> {
     fn new() -> Self {
         Self {
-            scopes: Vec::new(),
-            locals: HashMap::new(),
+            locals: Vec::new(),
             func_type: FuncType::default(),
+            scope_depth: 0,
         }
     }
 
@@ -160,5 +172,23 @@ impl<'a> Checker<'a> {
 
     fn stmt_func(&mut self, name: &String, func: &ExprNode, span: &Span) {
         todo!()
+    }
+
+    // -------------- HELPER FUNCTIONS --------------
+
+    fn begin_scope(&mut self) {
+        self.scope_depth += 1;
+    }
+
+    fn end_scope(&mut self) {
+        self.scope_depth -= 1;
+    }
+
+    fn add_local(&mut self, t: &'a TypeExpr, name: &'a String) {
+        self.locals.push(Local::new(name, self.scope_depth, t));
+    }
+
+    fn resolve_local(&self, name: &'a String) -> Option<&Local> {
+        self.locals.iter().rev().find(|local| local.name == name)
     }
 }
