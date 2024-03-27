@@ -1,7 +1,7 @@
 use logos::Span;
 use thiserror::Error;
 
-use crate::typechecker::TypeExpr;
+use crate::typechecker::Type;
 
 #[derive(Clone, Error, Debug, PartialEq)]
 #[error("{err_type}")]
@@ -13,10 +13,13 @@ pub struct SemanticError {
 #[derive(Clone, Error, PartialEq, Debug)]
 pub enum SemanticErrorType {
     #[error("expected {0} but got {1}")]
-    UnexpectedTypeError(TypeExpr, TypeExpr),
+    UnexpectedTypeError(Type, Type),
 
     #[error("undefined '{0}'")]
     UndefinedError(String),
+
+    #[error("invalid type '{0}'")]
+    InvalidTypeError(Type),
 }
 
 impl SemanticError {

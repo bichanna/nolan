@@ -110,11 +110,33 @@ impl<'a> Checker<'a> {
     }
 
     fn expr_ident(&mut self, name: &String, span: &Span) -> CheckResult<Type> {
-        todo!()
+        let local = self.resolve_local(name, span)?;
+        Ok(local.type_expr.0.clone())
     }
 
     fn expr_literal(&mut self, literal: &Literal) -> CheckResult<Type> {
-        todo!()
+        match literal {
+            Literal::Str(_) => Ok(Type::String),
+            Literal::Char(_) => Ok(Type::Char),
+            Literal::Int(_) => Ok(Type::Integer),
+            Literal::Float(_) => Ok(Type::Float),
+            Literal::Bool(_) => Ok(Type::Bool),
+            Literal::List(expr) => {
+                if let Some(expr) = expr.first() {
+                    let t = self.check_expr(&expr)?;
+                    Ok(Type::List(Box::new(TypeExpr(t, None))))
+                } else {
+                    Ok(Type::Unknown)
+                }
+            }
+            Literal::Tup(exprs) => {
+                let mut types = Vec::new();
+                for expr in exprs {
+                    types.push(TypeExpr(self.check_expr(expr)?, None));
+                }
+                Ok(Type::Tuple(types))
+            }
+        }
     }
 
     fn expr_binary(
@@ -125,7 +147,156 @@ impl<'a> Checker<'a> {
         right: &ExprNode,
         span: &Span,
     ) -> CheckResult<Type> {
-        todo!()
+        let left = self.check_expr(left)?;
+        let right = self.check_expr(right)?;
+
+        match op {
+            BinaryOp::Add => {
+                if matches!(left, Type::Integer) && matches!(right, Type::Integer) {
+                    Ok(Type::Integer)
+                } else if matches!(left, Type::Integer | Type::Float)
+                    && matches!(right, Type::Integer | Type::Float)
+                {
+                    Ok(Type::Float)
+                } else if matches!(left, Type::String) && matches!(right, Type::String) {
+                    Ok(Type::String)
+                } else {
+                    if matches!(left, Type::Float | Type::Integer) {
+                        throw_error!(
+                            SemanticErrorType::UnexpectedTypeError(Type::Float, right),
+                            span
+                        )
+                    } else if matches!(left, Type::String) {
+                        throw_error!(
+                            SemanticErrorType::UnexpectedTypeError(Type::String, right),
+                            span
+                        )
+                    } else {
+                        throw_error!(SemanticErrorType::InvalidTypeError(right), span)
+                    }
+                }
+            }
+            BinaryOp::Sub => {
+                if matches!(left, Type::Integer) && matches!(right, Type::Integer) {
+                    Ok(Type::Integer)
+                } else if matches!(left, Type::Integer | Type::Float)
+                    && matches!(right, Type::Integer | Type::Float)
+                {
+                    Ok(Type::Float)
+                } else {
+                    if matches!(left, Type::Float | Type::Integer) {
+                        throw_error!(
+                            SemanticErrorType::UnexpectedTypeError(Type::Float, right),
+                            span
+                        )
+                    } else {
+                        throw_error!(SemanticErrorType::InvalidTypeError(right), span)
+                    }
+                }
+            }
+            BinaryOp::Div => {
+                if matches!(left, Type::Integer | Type::Float)
+                    && matches!(right, Type::Integer | Type::Float)
+                {
+                    Ok(Type::Float)
+                } else {
+                    if matches!(left, Type::Float | Type::Integer) {
+                        throw_error!(
+                            SemanticErrorType::UnexpectedTypeError(Type::Float, right),
+                            span
+                        )
+                    } else {
+                        throw_error!(SemanticErrorType::InvalidTypeError(right), span)
+                    }
+                }
+            }
+            BinaryOp::Mul => {
+                if matches!(left, Type::Integer) && matches!(right, Type::Integer) {
+                    Ok(Type::Integer)
+                } else if matches!(left, Type::Integer | Type::Float)
+                    && matches!(right, Type::Integer | Type::Float)
+                {
+                    Ok(Type::Float)
+                } else {
+                    if matches!(left, Type::Float | Type::Integer) {
+                        throw_error!(
+                            SemanticErrorType::UnexpectedTypeError(Type::Float, right),
+                            span
+                        )
+                    } else {
+                        throw_error!(SemanticErrorType::InvalidTypeError(right), span)
+                    }
+                }
+            }
+            BinaryOp::Rem => {
+                if matches!(left, Type::Integer) && matches!(right, Type::Integer) {
+                    Ok(Type::Integer)
+                } else if matches!(left, Type::Integer | Type::Float)
+                    && matches!(right, Type::Integer | Type::Float)
+                {
+                    Ok(Type::Float)
+                } else {
+                    if matches!(left, Type::Float | Type::Integer) {
+                        throw_error!(
+                            SemanticErrorType::UnexpectedTypeError(Type::Float, right),
+                            span
+                        )
+                    } else {
+                        throw_error!(SemanticErrorType::InvalidTypeError(right), span)
+                    }
+                }
+            }
+            BinaryOp::GT => {
+                if matches!(left, Type::Bool) && matches!(right, Type::Bool) {
+                    Ok(Type::Bool)
+                } else {
+                    throw_error!(SemanticErrorType::InvalidTypeError(right), span)
+                }
+            }
+            BinaryOp::LT => {
+                if matches!(left, Type::Bool) && matches!(right, Type::Bool) {
+                    Ok(Type::Bool)
+                } else {
+                    throw_error!(SemanticErrorType::InvalidTypeError(right), span)
+                }
+            }
+            BinaryOp::GE => {
+                if matches!(left, Type::Bool) && matches!(right, Type::Bool) {
+                    Ok(Type::Bool)
+                } else {
+                    throw_error!(SemanticErrorType::InvalidTypeError(right), span)
+                }
+            }
+            BinaryOp::LE => {
+                if matches!(left, Type::Bool) && matches!(right, Type::Bool) {
+                    Ok(Type::Bool)
+                } else {
+                    throw_error!(SemanticErrorType::InvalidTypeError(right), span)
+                }
+            }
+            BinaryOp::Eq => {
+                if left == right {
+                    Ok(left)
+                } else {
+                    throw_error!(SemanticErrorType::InvalidTypeError(right), span)
+                }
+            }
+            BinaryOp::NEq => todo!(),
+            BinaryOp::And => {
+                if matches!(left, Type::Bool) && matches!(right, Type::Bool) {
+                    Ok(Type::Bool)
+                } else {
+                    throw_error!(SemanticErrorType::InvalidTypeError(right), span)
+                }
+            }
+            BinaryOp::Or => {
+                if matches!(left, Type::Bool) && matches!(right, Type::Bool) {
+                    Ok(Type::Bool)
+                } else {
+                    throw_error!(SemanticErrorType::InvalidTypeError(right), span)
+                }
+            }
+        }
     }
 
     fn expr_unary(
