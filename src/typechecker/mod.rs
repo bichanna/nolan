@@ -47,7 +47,7 @@ struct Checker<'a> {
     scope_depth: u32,
 }
 
-pub fn check(filename: &str, ast: &Vec<StmtNode>) {
+pub fn check(filename: &str, ast: &mut Vec<StmtNode>) {
     let mut checker = Checker::new();
     checker.check(filename, ast);
 }
@@ -61,7 +61,7 @@ impl<'a> Checker<'a> {
         }
     }
 
-    fn check(&mut self, filename: &str, ast: &Vec<StmtNode>) {
+    fn check(&mut self, filename: &str, ast: &mut Vec<StmtNode>) {
         for node in ast {
             if let Err(err) = self.check_stmt(node) {
                 let src =
@@ -73,7 +73,7 @@ impl<'a> Checker<'a> {
         }
     }
 
-    fn check_stmt(&mut self, stmt: &StmtNode) -> CheckResult<Type> {
+    fn check_stmt(&mut self, stmt: &mut StmtNode) -> CheckResult<Type> {
         match stmt {
             StmtNode::Expr(expr) => Ok(self.check_expr(expr)?),
             StmtNode::Block(t, block, span) => Ok(self.stmt_block(t, block, span)?),
@@ -89,7 +89,7 @@ impl<'a> Checker<'a> {
         }
     }
 
-    fn check_expr(&mut self, expr: &ExprNode) -> CheckResult<Type> {
+    fn check_expr(&mut self, expr: &mut ExprNode) -> CheckResult<Type> {
         match expr {
             ExprNode::Ident(name, span) => Ok(self.expr_ident(name, span)?),
             ExprNode::Literal(literal, _) => Ok(self.expr_literal(literal)?),
@@ -114,7 +114,7 @@ impl<'a> Checker<'a> {
         Ok(local.type_expr.0.clone())
     }
 
-    fn expr_literal(&mut self, literal: &Literal) -> CheckResult<Type> {
+    fn expr_literal(&mut self, literal: &mut Literal) -> CheckResult<Type> {
         match literal {
             Literal::Str(_) => Ok(Type::String),
             Literal::Char(_) => Ok(Type::Char),
@@ -122,8 +122,8 @@ impl<'a> Checker<'a> {
             Literal::Float(_) => Ok(Type::Float),
             Literal::Bool(_) => Ok(Type::Bool),
             Literal::List(expr) => {
-                if let Some(expr) = expr.first() {
-                    let t = self.check_expr(&expr)?;
+                if let Some(expr) = expr.first_mut() {
+                    let t = self.check_expr(expr)?;
                     Ok(Type::List(Box::new(TypeExpr(t, None))))
                 } else {
                     Ok(Type::Unknown)
@@ -141,10 +141,10 @@ impl<'a> Checker<'a> {
 
     fn expr_binary(
         &mut self,
-        t: &TypeExpr,
-        left: &ExprNode,
+        t: &mut TypeExpr,
+        left: &mut ExprNode,
         op: &BinaryOp,
-        right: &ExprNode,
+        right: &mut ExprNode,
         span: &Span,
     ) -> CheckResult<Type> {
         let left = self.check_expr(left)?;
@@ -153,12 +153,15 @@ impl<'a> Checker<'a> {
         match op {
             BinaryOp::Add => {
                 if matches!(left, Type::Integer) && matches!(right, Type::Integer) {
+                    *t = TypeExpr(Type::Integer, t.1.clone());
                     Ok(Type::Integer)
                 } else if matches!(left, Type::Integer | Type::Float)
                     && matches!(right, Type::Integer | Type::Float)
                 {
+                    *t = TypeExpr(Type::Float, t.1.clone());
                     Ok(Type::Float)
                 } else if matches!(left, Type::String) && matches!(right, Type::String) {
+                    *t = TypeExpr(Type::String, t.1.clone());
                     Ok(Type::String)
                 } else {
                     if matches!(left, Type::Float | Type::Integer) {
@@ -178,10 +181,12 @@ impl<'a> Checker<'a> {
             }
             BinaryOp::Sub => {
                 if matches!(left, Type::Integer) && matches!(right, Type::Integer) {
+                    *t = TypeExpr(Type::Integer, t.1.clone());
                     Ok(Type::Integer)
                 } else if matches!(left, Type::Integer | Type::Float)
                     && matches!(right, Type::Integer | Type::Float)
                 {
+                    *t = TypeExpr(Type::Float, t.1.clone());
                     Ok(Type::Float)
                 } else {
                     if matches!(left, Type::Float | Type::Integer) {
@@ -198,6 +203,7 @@ impl<'a> Checker<'a> {
                 if matches!(left, Type::Integer | Type::Float)
                     && matches!(right, Type::Integer | Type::Float)
                 {
+                    *t = TypeExpr(Type::Float, t.1.clone());
                     Ok(Type::Float)
                 } else {
                     if matches!(left, Type::Float | Type::Integer) {
@@ -212,10 +218,12 @@ impl<'a> Checker<'a> {
             }
             BinaryOp::Mul => {
                 if matches!(left, Type::Integer) && matches!(right, Type::Integer) {
+                    *t = TypeExpr(Type::Integer, t.1.clone());
                     Ok(Type::Integer)
                 } else if matches!(left, Type::Integer | Type::Float)
                     && matches!(right, Type::Integer | Type::Float)
                 {
+                    *t = TypeExpr(Type::Float, t.1.clone());
                     Ok(Type::Float)
                 } else {
                     if matches!(left, Type::Float | Type::Integer) {
@@ -230,10 +238,12 @@ impl<'a> Checker<'a> {
             }
             BinaryOp::Rem => {
                 if matches!(left, Type::Integer) && matches!(right, Type::Integer) {
+                    *t = TypeExpr(Type::Integer, t.1.clone());
                     Ok(Type::Integer)
                 } else if matches!(left, Type::Integer | Type::Float)
                     && matches!(right, Type::Integer | Type::Float)
                 {
+                    *t = TypeExpr(Type::Float, t.1.clone());
                     Ok(Type::Float)
                 } else {
                     if matches!(left, Type::Float | Type::Integer) {
@@ -248,6 +258,7 @@ impl<'a> Checker<'a> {
             }
             BinaryOp::GT => {
                 if matches!(left, Type::Bool) && matches!(right, Type::Bool) {
+                    *t = TypeExpr(Type::Bool, t.1.clone());
                     Ok(Type::Bool)
                 } else {
                     throw_error!(SemanticErrorType::InvalidTypeError(right), span)
@@ -255,6 +266,7 @@ impl<'a> Checker<'a> {
             }
             BinaryOp::LT => {
                 if matches!(left, Type::Bool) && matches!(right, Type::Bool) {
+                    *t = TypeExpr(Type::Bool, t.1.clone());
                     Ok(Type::Bool)
                 } else {
                     throw_error!(SemanticErrorType::InvalidTypeError(right), span)
@@ -262,6 +274,7 @@ impl<'a> Checker<'a> {
             }
             BinaryOp::GE => {
                 if matches!(left, Type::Bool) && matches!(right, Type::Bool) {
+                    *t = TypeExpr(Type::Bool, t.1.clone());
                     Ok(Type::Bool)
                 } else {
                     throw_error!(SemanticErrorType::InvalidTypeError(right), span)
@@ -269,21 +282,23 @@ impl<'a> Checker<'a> {
             }
             BinaryOp::LE => {
                 if matches!(left, Type::Bool) && matches!(right, Type::Bool) {
+                    *t = TypeExpr(Type::Bool, t.1.clone());
                     Ok(Type::Bool)
                 } else {
                     throw_error!(SemanticErrorType::InvalidTypeError(right), span)
                 }
             }
-            BinaryOp::Eq => {
+            BinaryOp::Eq | BinaryOp::NEq => {
                 if left == right {
+                    *t = TypeExpr(Type::Bool, t.1.clone());
                     Ok(left)
                 } else {
                     throw_error!(SemanticErrorType::InvalidTypeError(right), span)
                 }
             }
-            BinaryOp::NEq => todo!(),
             BinaryOp::And => {
                 if matches!(left, Type::Bool) && matches!(right, Type::Bool) {
+                    *t = TypeExpr(Type::Bool, t.1.clone());
                     Ok(Type::Bool)
                 } else {
                     throw_error!(SemanticErrorType::InvalidTypeError(right), span)
@@ -291,6 +306,7 @@ impl<'a> Checker<'a> {
             }
             BinaryOp::Or => {
                 if matches!(left, Type::Bool) && matches!(right, Type::Bool) {
+                    *t = TypeExpr(Type::Bool, t.1.clone());
                     Ok(Type::Bool)
                 } else {
                     throw_error!(SemanticErrorType::InvalidTypeError(right), span)
@@ -301,33 +317,63 @@ impl<'a> Checker<'a> {
 
     fn expr_unary(
         &mut self,
-        t: &TypeExpr,
+        t: &mut TypeExpr,
         op: &UnaryOp,
-        right: &ExprNode,
+        right: &mut ExprNode,
         span: &Span,
     ) -> CheckResult<Type> {
-        todo!()
+        let right = self.check_expr(right)?;
+        *t = TypeExpr(Type::Bool, t.1.clone());
+        match op {
+            UnaryOp::NegBool => {
+                if matches!(right, Type::Bool) {
+                    Ok(Type::Bool)
+                } else {
+                    throw_error!(
+                        SemanticErrorType::UnexpectedTypeError(Type::Bool, right),
+                        span
+                    )
+                }
+            }
+        }
     }
 
     fn expr_block(
         &mut self,
-        t: &TypeExpr,
-        block: &Vec<StmtNode>,
+        t: &mut TypeExpr,
+        block: &mut Vec<StmtNode>,
         span: &Span,
     ) -> CheckResult<Type> {
-        todo!()
+        let typ = if let Some(mut last) = block.pop() {
+            self.check_stmt(&mut last)?
+        } else {
+            Type::Void
+        };
+
+        for node in block {
+            self.check_stmt(node)?;
+        }
+
+        *t = TypeExpr(typ.clone(), t.1.clone());
+
+        Ok(typ)
     }
 
-    fn expr_func(&mut self, t: &TypeExpr, body: &StmtNode, span: &Span) -> CheckResult<Type> {
+    fn expr_func(
+        &mut self,
+        t: &mut TypeExpr,
+        body: &mut StmtNode,
+        span: &Span,
+    ) -> CheckResult<Type> {
         todo!()
     }
 
     fn expr_if(
         &mut self,
-        t: &TypeExpr,
-        cond: &ExprNode,
-        then: &ExprNode,
-        els: &ExprNode,
+        t: &mut TypeExpr,
+        cond: &mut ExprNode,
+        then: &mut ExprNode,
+        els: &mut ExprNode,
         span: &Span,
     ) -> CheckResult<Type> {
         todo!()
@@ -335,9 +381,9 @@ impl<'a> Checker<'a> {
 
     fn expr_apply(
         &mut self,
-        t: &TypeExpr,
-        callee: &ExprNode,
-        args: &Vec<ExprNode>,
+        t: &mut TypeExpr,
+        callee: &mut ExprNode,
+        args: &mut Vec<ExprNode>,
         span: &Span,
     ) -> CheckResult<Type> {
         todo!()
@@ -345,22 +391,27 @@ impl<'a> Checker<'a> {
 
     fn expr_index(
         &mut self,
-        t: &TypeExpr,
-        indexed: &ExprNode,
-        index: &ExprNode,
+        t: &mut TypeExpr,
+        indexed: &mut ExprNode,
+        index: &mut ExprNode,
         span: &Span,
     ) -> CheckResult<Type> {
         todo!()
     }
 
-    fn expr_assign(&mut self, left: &ExprNode, right: &ExprNode, span: &Span) -> CheckResult<Type> {
+    fn expr_assign(
+        &mut self,
+        left: &mut ExprNode,
+        right: &mut ExprNode,
+        span: &Span,
+    ) -> CheckResult<Type> {
         todo!()
     }
 
     fn stmt_block(
         &mut self,
-        t: &TypeExpr,
-        block: &Vec<StmtNode>,
+        t: &mut TypeExpr,
+        block: &mut Vec<StmtNode>,
         span: &Span,
     ) -> CheckResult<Type> {
         todo!()
@@ -368,23 +419,28 @@ impl<'a> Checker<'a> {
 
     fn stmt_assign(
         &mut self,
-        t: &TypeExpr,
+        t: &mut TypeExpr,
         name: &String,
-        value: &ExprNode,
+        value: &mut ExprNode,
         span: &Span,
     ) -> CheckResult<Type> {
         todo!()
     }
 
-    fn stmt_while(&mut self, cond: &ExprNode, body: &StmtNode, span: &Span) -> CheckResult<Type> {
+    fn stmt_while(
+        &mut self,
+        cond: &mut ExprNode,
+        body: &mut StmtNode,
+        span: &Span,
+    ) -> CheckResult<Type> {
         todo!()
     }
 
     fn stmt_if(
         &mut self,
-        cond: &ExprNode,
-        then_body: &StmtNode,
-        els: &Option<Box<StmtNode>>,
+        cond: &mut ExprNode,
+        then_body: &mut StmtNode,
+        els: &mut Option<Box<StmtNode>>,
         span: &Span,
     ) -> CheckResult<Type> {
         todo!()
@@ -398,11 +454,11 @@ impl<'a> Checker<'a> {
         todo!()
     }
 
-    fn stmt_return(&mut self, expr: &Option<ExprNode>, span: &Span) -> CheckResult<Type> {
+    fn stmt_return(&mut self, expr: &mut Option<ExprNode>, span: &Span) -> CheckResult<Type> {
         todo!()
     }
 
-    fn stmt_func(&mut self, name: &String, func: &ExprNode, span: &Span) -> CheckResult<Type> {
+    fn stmt_func(&mut self, name: &String, func: &mut ExprNode, span: &Span) -> CheckResult<Type> {
         todo!()
     }
 
