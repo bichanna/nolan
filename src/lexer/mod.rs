@@ -5,10 +5,6 @@ use snailquote::{unescape, UnescapeError};
 
 use crate::lexer::error::LexError;
 
-fn newline_callback(lex: &mut Lexer<Token>) {
-    lex.extras += 1;
-}
-
 fn char_callback(lex: &mut Lexer<Token>) -> Result<char, UnescapeError> {
     let unescaped = unescape(lex.slice());
     if let Err(err) = unescaped {
@@ -26,8 +22,7 @@ pub enum Token {
     #[regex(r"//[^\n]*\n?", skip)]
     #[regex(r"/\*(?:[^*]|\*[^/])*\*/", skip)] // Can't be nested
     #[token(";")]
-    // #[token("\n", newline_callback)]
-    NewLine,
+    SemiColon,
 
     /// Identifier
     #[regex(r"[A-Za-z_][A-Za-z0-9_]*", |lex| lex.slice().to_string(), priority = 1)]
@@ -287,7 +282,6 @@ mod tests {
         "#;
         let mut lexer = Token::lexer(&src);
 
-        // assert_eq!(lexer.next(), Some(Ok(Token::NewLine)));
         assert_eq!(
             lexer.next(),
             Some(Ok(Token::Ident("_someId123".to_string())))
@@ -299,9 +293,7 @@ mod tests {
         assert_eq!(lexer.next(), Some(Ok(Token::Char('c'))));
         assert_eq!(lexer.next(), Some(Ok(Token::Int(123))));
         assert_eq!(lexer.next(), Some(Ok(Token::Float(1.23e2))));
-        // assert_eq!(lexer.next(), Some(Ok(Token::NewLine)));
         assert_eq!(lexer.next(), Some(Ok(Token::Ident("abc".to_string()))));
-        // assert_eq!(lexer.next(), Some(Ok(Token::NewLine)));
         assert_eq!(lexer.next(), None);
     }
 }
