@@ -16,14 +16,7 @@ fn char_callback(lex: &mut Lexer<Token>) -> Result<char, UnescapeError> {
 
 #[derive(Logos, Clone, Debug, PartialEq)]
 #[logos(error = LexError)]
-#[logos(extras = usize)]
 pub enum Token {
-    #[regex(r"[ \n\t\f]+", skip)]
-    #[regex(r"//[^\n]*\n?", skip)]
-    #[regex(r"/\*(?:[^*]|\*[^/])*\*/", skip)] // Can't be nested
-    #[token(";")]
-    SemiColon,
-
     /// Identifier
     #[regex(r"[A-Za-z_][A-Za-z0-9_]*", |lex| lex.slice().to_string(), priority = 1)]
     Ident(String),
@@ -45,6 +38,9 @@ pub enum Token {
     #[regex(r"-?(?:0|[1-9]\d*)\.\d+(?:[eE][+-]?\d+)?", |lex| lex.slice().parse::<f64>())]
     Float(f64),
 
+    #[regex(r"[ \n\t\f]+", skip)]
+    #[regex(r"//[^\n]*\n?", skip)]
+    #[regex(r"/\*(?:[^*]|\*[^/])*\*/", skip)] // Can't be nested
     #[token("(")]
     LeftParen,
 
@@ -111,9 +107,6 @@ pub enum Token {
     #[token("<=")]
     LE,
 
-    #[token("<.")]
-    LDot,
-
     #[token("!=")]
     NotEq,
 
@@ -126,17 +119,8 @@ pub enum Token {
     #[token(".")]
     Dot,
 
-    #[token("...")]
-    ThreeDot,
-
     #[token(":")]
     Colon,
-
-    #[token("::")]
-    DColon,
-
-    #[token("_")]
-    Underscore,
 
     // Keywords
     #[token("not")]
@@ -151,23 +135,26 @@ pub enum Token {
     #[token("then")]
     Then,
 
+    #[token("end")]
+    End,
+
     #[token("func")]
     Func,
 
     #[token("match")]
     Match,
 
+    #[token("with")]
+    With,
+
     #[token("let")]
     Let,
 
+    #[token("data")]
+    Data,
+
     #[token("record")]
     Record,
-
-    #[token("enum")]
-    Enum,
-
-    #[token("type")]
-    Type,
 
     #[token("while")]
     While,
@@ -181,8 +168,8 @@ pub enum Token {
     #[token("return")]
     Return,
 
-    #[token("import")]
-    Import,
+    #[token("use")]
+    Use,
 
     #[token("export")]
     Export,
@@ -206,9 +193,6 @@ pub enum Token {
     #[token("char")]
     TChar,
 
-    #[token("byte")]
-    TByte,
-
     #[token("int")]
     TInt,
 
@@ -217,9 +201,6 @@ pub enum Token {
 
     #[token("bool")]
     TBool,
-
-    #[token("tup")]
-    TTup,
 
     #[token("void")]
     Void,
@@ -231,23 +212,25 @@ mod tests {
 
     #[test]
     fn keywords() {
-        let src = "not if else then func match let record enum type while break continue import export true false and or";
+        let src = "not if else then end func match with let data record while break continue return use export true false and or";
         let mut lexer = Token::lexer(&src);
 
         assert_eq!(lexer.next(), Some(Ok(Token::Not)));
         assert_eq!(lexer.next(), Some(Ok(Token::If)));
         assert_eq!(lexer.next(), Some(Ok(Token::Else)));
         assert_eq!(lexer.next(), Some(Ok(Token::Then)));
+        assert_eq!(lexer.next(), Some(Ok(Token::End)));
         assert_eq!(lexer.next(), Some(Ok(Token::Func)));
         assert_eq!(lexer.next(), Some(Ok(Token::Match)));
+        assert_eq!(lexer.next(), Some(Ok(Token::With)));
         assert_eq!(lexer.next(), Some(Ok(Token::Let)));
+        assert_eq!(lexer.next(), Some(Ok(Token::Data)));
         assert_eq!(lexer.next(), Some(Ok(Token::Record)));
-        assert_eq!(lexer.next(), Some(Ok(Token::Enum)));
-        assert_eq!(lexer.next(), Some(Ok(Token::Type)));
         assert_eq!(lexer.next(), Some(Ok(Token::While)));
         assert_eq!(lexer.next(), Some(Ok(Token::Break)));
         assert_eq!(lexer.next(), Some(Ok(Token::Continue)));
-        assert_eq!(lexer.next(), Some(Ok(Token::Import)));
+        assert_eq!(lexer.next(), Some(Ok(Token::Return)));
+        assert_eq!(lexer.next(), Some(Ok(Token::Use)));
         assert_eq!(lexer.next(), Some(Ok(Token::Export)));
         assert_eq!(lexer.next(), Some(Ok(Token::True)));
         assert_eq!(lexer.next(), Some(Ok(Token::False)));
@@ -258,18 +241,15 @@ mod tests {
 
     #[test]
     fn types() {
-        let src = "str char byte tup int  float bool void return";
+        let src = "str char int float bool void";
         let mut lexer = Token::lexer(&src);
 
         assert_eq!(lexer.next(), Some(Ok(Token::TStr)));
         assert_eq!(lexer.next(), Some(Ok(Token::TChar)));
-        assert_eq!(lexer.next(), Some(Ok(Token::TByte)));
-        assert_eq!(lexer.next(), Some(Ok(Token::TTup)));
         assert_eq!(lexer.next(), Some(Ok(Token::TInt)));
         assert_eq!(lexer.next(), Some(Ok(Token::TFloat)));
         assert_eq!(lexer.next(), Some(Ok(Token::TBool)));
         assert_eq!(lexer.next(), Some(Ok(Token::Void)));
-        assert_eq!(lexer.next(), Some(Ok(Token::Return)));
         assert_eq!(lexer.next(), None);
     }
 
