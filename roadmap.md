@@ -24,15 +24,15 @@
 
 ## Types
  - [ ] Minimal type inference.
- - [ ] Product and sum type definitions: `record` and `enum`.
+ - [ ] Product and sum type definitions: `data` and `record`.
  - [ ] Type aliases.
  - [ ] Generics.
  - [ ] Traits.
    - [ ] Static dispatch.
 
 ## Modules
- - [ ] Import expressions.
- - [ ] Export statements.
+ - [ ] `use` statements.
+ - [ ] `export` statements.
  - [ ] Relative importing of modules.
  - [ ] Import select symbols from a module.
  - [ ] Import all visible symbols from a module.
@@ -44,7 +44,6 @@
    - [ ] LLVM
  - [ ] LSP server.
  - [ ] Warnings when variables are unused.
- - [ ] Line continuations.
 
 ## Concurrency
  - [ ] Actor model concurrency.
