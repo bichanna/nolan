@@ -122,6 +122,12 @@ pub enum Token {
     #[token(":")]
     Colon,
 
+    #[token("::")]
+    DColon,
+
+    #[token("_")]
+    Underscore,
+
     // Keywords
     #[token("not")]
     Not,
