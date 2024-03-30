@@ -62,6 +62,9 @@ pub enum Token {
     #[token("\\")]
     BackSlash,
 
+    #[token("|")]
+    MatchOr,
+
     #[token("+")]
     Plus,
 
@@ -156,11 +159,11 @@ pub enum Token {
     #[token("let")]
     Let,
 
-    #[token("data")]
-    Data,
+    #[token("enum")]
+    Enum,
 
-    #[token("record")]
-    Record,
+    #[token("struct")]
+    Struct,
 
     #[token("while")]
     While,
@@ -218,7 +221,7 @@ mod tests {
 
     #[test]
     fn keywords() {
-        let src = "not if else then end func match with let data record while break continue return use export true false and or";
+        let src = "not if else then end func match with let enum struct while break continue return use export true false and or";
         let mut lexer = Token::lexer(&src);
 
         assert_eq!(lexer.next(), Some(Ok(Token::Not)));
@@ -230,8 +233,8 @@ mod tests {
         assert_eq!(lexer.next(), Some(Ok(Token::Match)));
         assert_eq!(lexer.next(), Some(Ok(Token::With)));
         assert_eq!(lexer.next(), Some(Ok(Token::Let)));
-        assert_eq!(lexer.next(), Some(Ok(Token::Data)));
-        assert_eq!(lexer.next(), Some(Ok(Token::Record)));
+        assert_eq!(lexer.next(), Some(Ok(Token::Enum)));
+        assert_eq!(lexer.next(), Some(Ok(Token::Struct)));
         assert_eq!(lexer.next(), Some(Ok(Token::While)));
         assert_eq!(lexer.next(), Some(Ok(Token::Break)));
         assert_eq!(lexer.next(), Some(Ok(Token::Continue)));
