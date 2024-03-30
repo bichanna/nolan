@@ -65,6 +65,9 @@ pub enum Token {
     #[token("|")]
     MatchOr,
 
+    #[token("#")]
+    HashTag,
+
     #[token("+")]
     Plus,
 
