@@ -16,6 +16,7 @@ pub enum Type {
     List(Box<SpannedType>),                   // []`Type`
     Tup(Vec<SpannedType>),                    // <`Type`...>
     Func(Vec<SpannedType>, Box<SpannedType>), // func(`Type`...): `Type`
+    Named(String),
     Unknown,
 }
 
@@ -64,6 +65,7 @@ impl Display for Type {
                     format!(": {}", rt)
                 }
             ),
+            Type::Named(name) => format!("{name}"),
             Type::Unknown => unimplemented!(),
         };
 
