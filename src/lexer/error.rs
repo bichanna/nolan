@@ -23,7 +23,9 @@ pub enum LexError {
 impl From<ParseIntError> for LexError {
     fn from(value: ParseIntError) -> Self {
         match value.kind() {
-            PosOverflow | NegOverflow => LexError::InvalidInt("Overflow error".to_string()),
+            PosOverflow | NegOverflow => {
+                LexError::InvalidInt("Overflow error".to_string())
+            }
             InvalidDigit => LexError::InvalidInt("Invalid digit".to_string()),
             _ => LexError::InvalidInt("Invalid integer".to_string()),
         }
