@@ -3,14 +3,16 @@ use std::rc::Rc;
 
 use logos;
 
+pub type SourcePath = Rc<Path>;
+
 #[derive(Clone, Debug, PartialEq)]
 pub struct Span {
     pub span: logos::Span,
-    pub path: Rc<Path>,
+    pub path: SourcePath,
 }
 
 impl Span {
-    pub fn proper_span(span: logos::Span, path: Rc<Path>) -> Self {
+    pub fn proper_span(span: logos::Span, path: SourcePath) -> Self {
         Self { span, path }
     }
 }
