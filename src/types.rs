@@ -5,7 +5,7 @@ use crate::lexer::Token;
 
 pub type SpannedType = Spanned<Type>;
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Type {
     Int,                                      // int
     Float,                                    // float

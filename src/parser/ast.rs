@@ -623,6 +623,87 @@ impl Node for Return {
 }
 
 #[derive(Debug, Clone, PartialEq)]
+pub enum EnumVarPattern {
+    VarAccess(Box<EnumVarAccess>),
+    /// `callee` of `Box<Call>` should be `EnumVarAccess`
+    VarInit(Box<Call>),
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct PropertyPattern {
+    pub name: String,
+    pub pattern: Pattern,
+    pub span: Span,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct StructPattern {
+    pub properties: Vec<PropertyPattern>,
+    pub span: Span,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct ListPattern {
+    pub elements: Vec<Pattern>,
+    pub span: Span,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct TuplePattern {
+    pub values: Vec<Pattern>,
+    pub span: Span,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct OrPattern {
+    pub patterns: Vec<Pattern>,
+    pub span: Span,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum Pattern {
+    Ident(Box<Ident>),
+    Variant(Box<EnumVarPattern>),
+    Struct(Box<StructPattern>),
+    Int(Box<IntLiteral>),
+    Float(Box<FloatLiteral>),
+    Char(Box<CharLiteral>),
+    Str(Box<StrLiteral>),
+    Bool(Box<BoolLiteral>),
+    List(Box<ListPattern>),
+    Tuple(Box<TuplePattern>),
+    Wildcard(Span),
+    Or(Box<OrPattern>),
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct MatchCase {
+    pub pattern: Pattern,
+    pub guard: Option<Expr>,
+    pub body: Vec<Expr>,
+    pub type_: Type,
+    pub span: Span,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct Match {
+    pub expression: Expr,
+    pub expressions: Vec<MatchCase>,
+    pub type_: Type,
+    pub span: Span,
+}
+
+impl Node for Match {
+    fn get_span(&self) -> &Span {
+        &self.span
+    }
+
+    fn get_type(&self) -> &Type {
+        &self.type_
+    }
+}
+
+#[derive(Debug, Clone, PartialEq)]
 pub enum Expr {
     Int(Box<IntLiteral>),
     Float(Box<FloatLiteral>),
