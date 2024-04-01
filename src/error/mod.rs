@@ -5,7 +5,7 @@ use logos;
 
 pub type SourcePath = Rc<Path>;
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Span {
     pub span: logos::Span,
     pub path: SourcePath,
@@ -17,11 +17,11 @@ impl Span {
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Spanned<T>(pub T, pub Span);
 
-pub fn combine(lhs: Span, rhs: Span) -> Span {
-    let (lhs, rhs, path) = (lhs.span, rhs.span, lhs.path);
+pub fn combine(lhs: &Span, rhs: &Span) -> Span {
+    let (lhs, rhs, path) = (&lhs.span, &rhs.span, lhs.path.clone());
     Span {
         span: logos::Span {
             start: if lhs.start < rhs.start { lhs.start } else { rhs.start },
