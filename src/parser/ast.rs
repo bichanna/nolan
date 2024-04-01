@@ -1,7 +1,8 @@
+use std::fmt::Debug;
 use std::path::Path;
 use std::rc::Rc;
 
-use crate::error::{SourcePath, Span};
+use crate::error::{combine, SourcePath, Span, Spanned};
 use crate::types::{SpannedType, Type};
 
 pub trait Node {
@@ -9,6 +10,7 @@ pub trait Node {
     fn get_type(&self) -> &Type;
 }
 
+#[derive(Debug, Clone, PartialEq)]
 pub struct IntLiteral {
     pub value: i64,
     pub span: Span,
@@ -24,6 +26,7 @@ impl Node for IntLiteral {
     }
 }
 
+#[derive(Debug, Clone, PartialEq)]
 pub struct FloatLiteral {
     pub value: f64,
     pub span: Span,
@@ -39,6 +42,7 @@ impl Node for FloatLiteral {
     }
 }
 
+#[derive(Debug, Clone, PartialEq)]
 pub struct CharLiteral {
     pub value: char,
     pub span: Span,
@@ -54,6 +58,7 @@ impl Node for CharLiteral {
     }
 }
 
+#[derive(Debug, Clone, PartialEq)]
 pub struct StrLiteral {
     pub value: String,
     pub span: Span,
@@ -69,6 +74,7 @@ impl Node for StrLiteral {
     }
 }
 
+#[derive(Debug, Clone, PartialEq)]
 pub struct BoolLiteral {
     pub value: bool,
     pub span: Span,
@@ -84,8 +90,9 @@ impl Node for BoolLiteral {
     }
 }
 
+#[derive(Debug, Clone, PartialEq)]
 pub struct List {
-    pub elements: Vec<Box<dyn Node>>, // TODO: change to Expr
+    pub elements: Vec<Expr>,
     pub span: Span,
     pub type_: Type,
 }
@@ -100,8 +107,9 @@ impl Node for List {
     }
 }
 
+#[derive(Debug, Clone, PartialEq)]
 pub struct Tuple {
-    pub values: Vec<Box<dyn Node>>, // TODO: change to Expr
+    pub values: Vec<Expr>,
     pub span: Span,
     pub type_: Type,
 }
@@ -116,6 +124,7 @@ impl Node for Tuple {
     }
 }
 
+#[derive(Debug, Clone, PartialEq)]
 pub struct Ident {
     pub name: String,
     pub span: Span,
@@ -132,6 +141,7 @@ impl Node for Ident {
     }
 }
 
+#[derive(Debug, Clone, PartialEq)]
 pub struct EnumVarAccess {
     pub source: String,
     pub variant: String,
@@ -149,6 +159,7 @@ impl Node for EnumVarAccess {
     }
 }
 
+#[derive(Debug, Clone, PartialEq)]
 pub struct StructAccess {
     pub source: String,
     pub property: String,
@@ -166,6 +177,7 @@ impl Node for StructAccess {
     }
 }
 
+#[derive(Debug, Clone, PartialEq)]
 pub struct ModAccess {
     pub module: String,
     pub constant: String,
@@ -183,12 +195,14 @@ impl Node for ModAccess {
     }
 }
 
+#[derive(Debug, Clone, PartialEq)]
 pub struct EnumVarDef {
     pub name: String,
     pub types: Vec<SpannedType>,
     pub span: Span,
 }
 
+#[derive(Debug, Clone, PartialEq)]
 pub struct EnumDef {
     pub name: String,
     pub variants: Vec<EnumVarDef>,
@@ -205,9 +219,10 @@ impl Node for EnumDef {
     }
 }
 
+#[derive(Debug, Clone, PartialEq)]
 pub struct Call {
-    pub callee: Box<dyn Node>, // TODO: change to Expr
-    pub arguments: Vec<Box<dyn Node>>, // TODO: change to Expr
+    pub callee: Expr,
+    pub arguments: Vec<Expr>,
     pub type_: Type,
     pub span: Span,
 }
@@ -222,12 +237,14 @@ impl Node for Call {
     }
 }
 
+#[derive(Debug, Clone, PartialEq)]
 pub struct StructPropDef {
     pub name: String,
     pub type_: SpannedType,
     pub span: Span,
 }
 
+#[derive(Debug, Clone, PartialEq)]
 pub struct StructDef {
     pub name: String,
     pub properties: Vec<StructPropDef>,
@@ -244,12 +261,14 @@ impl Node for StructDef {
     }
 }
 
+#[derive(Debug, Clone, PartialEq)]
 pub struct StructInitArg {
     pub name: String,
-    pub value: Box<dyn Node>, // TODO: change to Expr
+    pub value: Expr,
     pub span: Span,
 }
 
+#[derive(Debug, Clone, PartialEq)]
 pub struct StructInit {
     pub name: String,
     pub arguments: Vec<StructInitArg>,
@@ -267,20 +286,21 @@ impl Node for StructInit {
     }
 }
 
+#[derive(Debug, Clone, PartialEq)]
 pub struct Module {
-    pub name: String,
+    pub name: Spanned<String>,
     pub path: Rc<Path>,
-    pub expressions: Vec<Box<dyn Node>>, // TODO: change to TopLevelExpr
+    pub expressions: Vec<TopLevelExpr>,
     pub type_: Type,
 }
 
 impl Module {
-    pub fn new(name: String, path: SourcePath) -> Self {
+    pub fn new(name: Spanned<String>, path: SourcePath) -> Self {
         Self {
             name: name.clone(),
             path,
             expressions: vec![],
-            type_: Type::Named(name),
+            type_: Type::Named(name.0),
         }
     }
 }
@@ -295,12 +315,14 @@ impl Node for Module {
     }
 }
 
+#[derive(Debug, Clone, PartialEq)]
 pub struct FuncParam {
     pub name: String,
     pub type_: SpannedType,
     pub span: Span,
 }
 
+#[derive(Debug, Clone, PartialEq)]
 pub struct Closure {
     pub parameters: Vec<FuncParam>,
     pub return_type: SpannedType,
@@ -318,6 +340,7 @@ impl Node for Closure {
     }
 }
 
+#[derive(Debug, Clone, PartialEq)]
 pub struct Func {
     pub name: String,
     pub closure: Closure,
@@ -334,6 +357,7 @@ impl Node for Func {
     }
 }
 
+#[derive(Debug, Copy, Clone, PartialEq)]
 pub enum BinaryOpKind {
     Add,
     Sub,
@@ -350,14 +374,16 @@ pub enum BinaryOpKind {
     Or,
 }
 
+#[derive(Debug, Clone, PartialEq)]
 pub struct BinaryOp {
     pub kind: BinaryOpKind,
     pub span: Span,
 }
 
+#[derive(Debug, Clone, PartialEq)]
 pub struct Binary {
-    pub lhs: Box<dyn Node>, // TODO: change to Expr
-    pub rhs: Box<dyn Node>, // TODO: change to Expr
+    pub lhs: Expr,
+    pub rhs: Expr,
     pub operator: BinaryOp,
     pub span: Span,
     pub type_: Type,
@@ -373,18 +399,21 @@ impl Node for Binary {
     }
 }
 
+#[derive(Debug, Copy, Clone, PartialEq)]
 pub enum UnaryOpKind {
     NegBool,
     NegNum,
 }
 
+#[derive(Debug, Clone, PartialEq)]
 pub struct UnaryOp {
     pub kind: UnaryOpKind,
     pub span: Span,
 }
 
+#[derive(Debug, Clone, PartialEq)]
 pub struct Unary {
-    pub rhs: Box<dyn Node>, // TODO: change to Expr
+    pub rhs: Expr,
     pub operator: UnaryOp,
     pub span: Span,
     pub type_: Type,
@@ -400,8 +429,9 @@ impl Node for Unary {
     }
 }
 
+#[derive(Debug, Clone, PartialEq)]
 pub struct Group {
-    pub expression: Box<dyn Node>, // TODO: change to Expr
+    pub expression: Expr,
     pub type_: Type,
     pub span: Span,
 }
@@ -416,10 +446,11 @@ impl Node for Group {
     }
 }
 
+#[derive(Debug, Clone, PartialEq)]
 pub struct If {
-    pub condition: Box<dyn Node>, // TODO: change to Expr
-    pub then: Box<dyn Node>,      // TODO: change to Expr
-    pub else_: Box<dyn Node>,     // TODO: change to Expr
+    pub condition: Expr,
+    pub then: Expr,
+    pub else_: Expr,
     pub type_: Type,
     pub span: Span,
 }
@@ -434,10 +465,11 @@ impl Node for If {
     }
 }
 
+#[derive(Debug, Clone, PartialEq)]
 pub struct When {
-    pub condition: Box<dyn Node>, // TODO: change to Expr
-    pub then: Box<dyn Node>,      // TODO: change to Expr
-    pub else_: Option<Box<dyn Node>>, // TODO: change to Expr
+    pub condition: Expr,
+    pub then: Expr,
+    pub else_: Option<Expr>,
     pub span: Span,
 }
 
@@ -451,9 +483,10 @@ impl Node for When {
     }
 }
 
+#[derive(Debug, Clone, PartialEq)]
 pub struct AssignVar {
     pub name: String,
-    pub value: Box<dyn Node>, // TODO: change to Expr
+    pub value: Expr,
     pub type_: Type,
     pub span: Span,
 }
@@ -468,9 +501,10 @@ impl Node for AssignVar {
     }
 }
 
+#[derive(Debug, Clone, PartialEq)]
 pub struct DefVar {
     pub name: String,
-    pub value: Box<dyn Node>, // TODO: change to Expr
+    pub value: Expr,
     pub type_: SpannedType,
     pub span: Span,
 }
@@ -482,5 +516,275 @@ impl Node for DefVar {
 
     fn get_type(&self) -> &Type {
         &self.type_.0
+    }
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct Index {
+    pub source: Expr,
+    pub index: Expr,
+    pub type_: Type,
+    pub span: Span,
+}
+
+impl Node for Index {
+    fn get_span(&self) -> &Span {
+        &self.span
+    }
+
+    fn get_type(&self) -> &Type {
+        &self.type_
+    }
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct Use {
+    pub module: String,
+    pub imports: Option<Vec<String>>,
+    pub span: Span,
+}
+
+impl Node for Use {
+    fn get_span(&self) -> &Span {
+        &self.span
+    }
+
+    fn get_type(&self) -> &Type {
+        &Type::Void
+    }
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct Export {
+    pub symbols: Vec<Spanned<String>>,
+    pub span: Span,
+}
+
+impl Node for Export {
+    fn get_span(&self) -> &Span {
+        &self.span
+    }
+
+    fn get_type(&self) -> &Type {
+        &Type::Void
+    }
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct While {
+    pub condition: Expr,
+    pub body: Vec<Expr>,
+    pub span: Span,
+}
+
+impl Node for While {
+    fn get_span(&self) -> &Span {
+        &self.span
+    }
+
+    fn get_type(&self) -> &Type {
+        &Type::Void
+    }
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct Break {
+    pub span: Span,
+}
+
+impl Node for Break {
+    fn get_span(&self) -> &Span {
+        &self.span
+    }
+
+    fn get_type(&self) -> &Type {
+        &Type::Void
+    }
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct Return {
+    pub value: Option<Expr>,
+    pub span: Span,
+}
+
+impl Node for Return {
+    fn get_span(&self) -> &Span {
+        &self.span
+    }
+
+    fn get_type(&self) -> &Type {
+        if let Some(ref value) = self.value {
+            value.get_type()
+        } else {
+            &Type::Void
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum Expr {
+    Int(Box<IntLiteral>),
+    Float(Box<FloatLiteral>),
+    Char(Box<CharLiteral>),
+    Str(Box<StrLiteral>),
+    Bool(Box<BoolLiteral>),
+    List(Box<List>),
+    Tuple(Box<Tuple>),
+    Ident(Box<Ident>),
+    EnumVarAccess(Box<EnumVarAccess>),
+    StructAccess(Box<StructAccess>),
+    ModAccess(Box<ModAccess>),
+    EnumDef(Box<EnumDef>),
+    Call(Box<Call>),
+    StructDef(Box<StructDef>),
+    StructInit(Box<StructInit>),
+    Module(Box<Module>),
+    Closure(Box<Closure>),
+    Func(Box<Func>),
+    Binary(Box<Binary>),
+    Unary(Box<Unary>),
+    Group(Box<Group>),
+    If(Box<If>),
+    When(Box<When>),
+    AssignVar(Box<AssignVar>),
+    DefVar(Box<DefVar>),
+    Index(Box<Index>),
+    While(Box<While>),
+    Break(Box<Break>),
+    Return(Box<Return>),
+}
+
+impl Expr {
+    #[inline]
+    pub fn binary(
+        left: Self,
+        binary_op: BinaryOp,
+        right: Self,
+        type_: Option<Type>,
+    ) -> Self {
+        let new_span = combine(left.get_span(), right.get_span());
+        Self::Binary(Box::new(Binary {
+            lhs: left,
+            rhs: right,
+            operator: binary_op,
+            span: new_span,
+            type_: if let Some(type_) = type_ { type_ } else { Type::Unknown },
+        }))
+    }
+
+    #[inline]
+    pub fn unary(unary_op: UnaryOp, right: Self, type_: Option<Type>) -> Self {
+        let new_span = combine(&unary_op.span, right.get_span());
+        Self::Unary(Box::new(Unary {
+            rhs: right,
+            operator: unary_op,
+            span: new_span,
+            type_: if let Some(type_) = type_ { type_ } else { Type::Unknown },
+        }))
+    }
+}
+
+impl Node for Expr {
+    fn get_span(&self) -> &Span {
+        match self {
+            Self::Int(ref node) => node.get_span(),
+            Self::Float(ref node) => node.get_span(),
+            Self::Char(ref node) => node.get_span(),
+            Self::Str(ref node) => node.get_span(),
+            Self::Bool(ref node) => node.get_span(),
+            Self::List(ref node) => node.get_span(),
+            Self::Tuple(ref node) => node.get_span(),
+            Self::Ident(ref node) => node.get_span(),
+            Self::EnumVarAccess(ref node) => node.get_span(),
+            Self::StructAccess(ref node) => node.get_span(),
+            Self::ModAccess(ref node) => node.get_span(),
+            Self::EnumDef(ref node) => node.get_span(),
+            Self::Call(ref node) => node.get_span(),
+            Self::StructDef(ref node) => node.get_span(),
+            Self::StructInit(ref node) => node.get_span(),
+            Self::Module(ref node) => node.get_span(),
+            Self::Closure(ref node) => node.get_span(),
+            Self::Func(ref node) => node.get_span(),
+            Self::Binary(ref node) => node.get_span(),
+            Self::Unary(ref node) => node.get_span(),
+            Self::Group(ref node) => node.get_span(),
+            Self::If(ref node) => node.get_span(),
+            Self::When(ref node) => node.get_span(),
+            Self::AssignVar(ref node) => node.get_span(),
+            Self::DefVar(ref node) => node.get_span(),
+            Self::Index(ref node) => node.get_span(),
+            Self::While(ref node) => node.get_span(),
+            Self::Break(ref node) => node.get_span(),
+            Self::Return(ref node) => node.get_span(),
+        }
+    }
+
+    fn get_type(&self) -> &Type {
+        match self {
+            Self::Int(ref expr) => expr.get_type(),
+            Self::Float(ref node) => node.get_type(),
+            Self::Char(ref node) => node.get_type(),
+            Self::Str(ref node) => node.get_type(),
+            Self::Bool(ref node) => node.get_type(),
+            Self::List(ref node) => node.get_type(),
+            Self::Tuple(ref node) => node.get_type(),
+            Self::Ident(ref node) => node.get_type(),
+            Self::EnumVarAccess(ref node) => node.get_type(),
+            Self::StructAccess(ref node) => node.get_type(),
+            Self::ModAccess(ref node) => node.get_type(),
+            Self::EnumDef(ref node) => node.get_type(),
+            Self::Call(ref node) => node.get_type(),
+            Self::StructDef(ref node) => node.get_type(),
+            Self::StructInit(ref node) => node.get_type(),
+            Self::Module(ref node) => node.get_type(),
+            Self::Closure(ref node) => node.get_type(),
+            Self::Func(ref node) => node.get_type(),
+            Self::Binary(ref node) => node.get_type(),
+            Self::Unary(ref node) => node.get_type(),
+            Self::Group(ref node) => node.get_type(),
+            Self::If(ref node) => node.get_type(),
+            Self::When(ref node) => node.get_type(),
+            Self::AssignVar(ref node) => node.get_type(),
+            Self::DefVar(ref node) => node.get_type(),
+            Self::Index(ref node) => node.get_type(),
+            Self::While(ref node) => node.get_type(),
+            Self::Break(ref node) => node.get_type(),
+            Self::Return(ref node) => node.get_type(),
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum TopLevelExpr {
+    EnumDef(Box<EnumDef>),
+    StructDef(Box<StructDef>),
+    Module(Box<Module>),
+    Func(Box<Func>),
+    Use(Box<Use>),
+    Export(Box<Export>),
+}
+
+impl Node for TopLevelExpr {
+    fn get_span(&self) -> &Span {
+        match self {
+            Self::EnumDef(ref node) => node.get_span(),
+            Self::StructDef(ref node) => node.get_span(),
+            Self::Module(ref node) => node.get_span(),
+            Self::Func(ref node) => node.get_span(),
+            Self::Use(ref node) => node.get_span(),
+            Self::Export(ref node) => node.get_span(),
+        }
+    }
+
+    fn get_type(&self) -> &Type {
+        match self {
+            Self::EnumDef(ref node) => node.get_type(),
+            Self::StructDef(ref node) => node.get_type(),
+            Self::Module(ref node) => node.get_type(),
+            Self::Func(ref node) => node.get_type(),
+            Self::Use(ref node) => node.get_type(),
+            Self::Export(ref node) => node.get_type(),
+        }
     }
 }
