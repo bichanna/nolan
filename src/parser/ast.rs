@@ -1,6 +1,4 @@
 use std::fmt::Debug;
-use std::path::Path;
-use std::rc::Rc;
 
 use crate::error::{combine, SourcePath, Span, Spanned};
 use crate::types::{SpannedType, Type};
@@ -288,19 +286,19 @@ impl Node for StructInit {
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Module {
-    pub name: Spanned<String>,
-    pub path: Rc<Path>,
+    pub name: String,
+    pub path: SourcePath,
     pub expressions: Vec<TopLevelExpr>,
     pub type_: Type,
 }
 
 impl Module {
-    pub fn new(name: Spanned<String>, path: SourcePath) -> Self {
+    pub fn new(name: String, path: SourcePath) -> Self {
         Self {
             name: name.clone(),
             path,
             expressions: vec![],
-            type_: Type::Named(name.0),
+            type_: Type::Named(name),
         }
     }
 }

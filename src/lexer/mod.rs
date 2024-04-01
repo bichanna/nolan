@@ -1,9 +1,7 @@
-pub mod error;
-
 use logos::{skip, Lexer, Logos};
 use snailquote::{unescape, UnescapeError};
 
-use crate::lexer::error::LexError;
+use crate::error::lex::LexError;
 
 fn char_callback(lex: &mut Lexer<Token>) -> Result<char, UnescapeError> {
     let unescaped = unescape(lex.slice());

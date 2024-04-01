@@ -3,6 +3,8 @@ use std::rc::Rc;
 
 use logos;
 
+pub mod lex;
+
 pub type SourcePath = Rc<Path>;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
