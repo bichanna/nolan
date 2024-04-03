@@ -5,7 +5,6 @@ use std::path::{Path, PathBuf};
 use ariadne::{ColorGenerator, Label, Report, ReportKind, Source};
 use logos;
 
-pub mod ignored;
 pub mod lex;
 pub mod parse;
 
