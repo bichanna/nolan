@@ -9,6 +9,9 @@ use fmt [println];
 func main(args []str) {
     let name = "Nobu";
     "Hello world".println();
+
+    let names = ["Nobu", "Anna"];
+    names.for_each() in (name) { name.println(); };
 }
 
 
@@ -44,15 +47,15 @@ let nobu Person = Person { age 18, name "Nobu" };
 /// Functions
 pure func fizzbuzz(n int) str {
     match <n % 3, n % 5> {
-        <0, 0> then "fizz buzz";
-        <0, _> then "fizz";
-        <_, 0> then "buzz";
-        else then n.to_str();
+        <0, 0> then "fizz buzz",
+        <0, _> then "fizz",
+        <_, 0> { "buzz"; },
+        else { n.to_str(); }
     }
 }
 
 pure func greet(name option[str]) str do
-    "Hello, {}!".fmt::format([name.unwrap_or("guest")]);
+    "Hello, {}!".fmt::format() <. name.unwrap_or("guest")
 
 func check_credentials() bool {
     let username = "Username: ".io::get_line();
@@ -75,7 +78,7 @@ if blah then
 else
     // do something in one line
 
-let abc = if blah then 123 else 321
+let abc = if blah then 123 else 321;
 
 
 /// When statements
