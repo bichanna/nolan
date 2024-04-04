@@ -3,8 +3,7 @@ use std::fs;
 use logos::{Lexer, Logos};
 
 use crate::ast::*;
-use crate::error::lex::LexError;
-use crate::error::parse::{ParseError, ParseErrorKind};
+use crate::error::{LexError, ParseError, ParseErrorKind};
 use crate::error::{SourcePath, Spanned};
 use crate::lexer::Token;
 use crate::types::Type;

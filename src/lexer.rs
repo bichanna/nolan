@@ -1,7 +1,7 @@
 use logos::{skip, Logos};
 use snailquote::unescape;
 
-use crate::error::lex::LexError;
+use crate::error::LexError;
 
 #[derive(Logos, Clone, Debug, PartialEq)]
 #[logos(error = LexError)]
