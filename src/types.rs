@@ -10,7 +10,6 @@ pub enum Type {
     Int,                                      // int
     Float,                                    // float
     Str,                                      // str
-    Char,                                     // char
     Bool,                                     // bool
     Void,                                     // void
     List(Box<SpannedType>),                   // []`Type`
@@ -28,7 +27,6 @@ impl TryFrom<Token> for Type {
             Token::TInt => Ok(Type::Int),
             Token::TFloat => Ok(Type::Float),
             Token::TStr => Ok(Type::Str),
-            Token::TChar => Ok(Type::Char),
             Token::TBool => Ok(Type::Bool),
             Token::Void => Ok(Type::Void),
             _ => Err(()),
@@ -42,7 +40,6 @@ impl Display for Type {
             Type::Int => "int".to_string(),
             Type::Float => "float".to_string(),
             Type::Str => "str".to_string(),
-            Type::Char => "char".to_string(),
             Type::Bool => "bool".to_string(),
             Type::Void => "void".to_string(),
             Type::List(t) => format!("[]{t}"),

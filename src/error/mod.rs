@@ -9,7 +9,7 @@ pub mod lex;
 pub mod parse;
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
-pub struct SourcePath(PathBuf);
+pub struct SourcePath(pub PathBuf);
 
 pub type Span = logos::Span;
 

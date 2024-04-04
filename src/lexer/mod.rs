@@ -1,16 +1,7 @@
-use logos::{skip, Lexer, Logos};
-use snailquote::{unescape, UnescapeError};
+use logos::{skip, Logos};
+use snailquote::unescape;
 
 use crate::error::lex::LexError;
-
-fn char_callback(lex: &mut Lexer<Token>) -> Result<char, UnescapeError> {
-    let unescaped = unescape(lex.slice());
-    if let Err(err) = unescaped {
-        Err(err)
-    } else {
-        Ok(unescaped.unwrap().chars().nth(0).unwrap())
-    }
-}
 
 #[derive(Logos, Clone, Debug, PartialEq)]
 #[logos(error = LexError)]
@@ -23,10 +14,6 @@ pub enum Token {
     /// Regex inspired by <https://stackoverflow.com/questions/32155133/regex-to-match-a-json-string>
     #[regex(r#""([^"\\]|\\["\\bnfrt]|u[a-fA-F0-9]{4})*""#, |lex| unescape(lex.slice()))]
     Str(String),
-
-    /// Character
-    #[regex(r#"'([^'\\]|\\['\\bnfrt]|u[a-fA-F0-9]{4})'"#, char_callback)]
-    Char(char),
 
     /// Integer
     #[regex(r"-?(?:0|[1-9]\d*)(?:[eE]?\d+)?", |lex| lex.slice().parse::<i64>())]
@@ -60,11 +47,11 @@ pub enum Token {
     #[token("\\")]
     BackSlash,
 
+    #[token("'")]
+    SingleQuote,
+
     #[token("|")]
     MatchOr,
-
-    #[token("#")]
-    HashTag,
 
     #[token("+")]
     Plus,
@@ -111,6 +98,9 @@ pub enum Token {
     #[token("<=")]
     LE,
 
+    #[token("<.")]
+    LDot,
+
     #[token("!=")]
     NotEq,
 
@@ -145,17 +135,14 @@ pub enum Token {
     #[token("then")]
     Then,
 
-    #[token("end")]
-    End,
+    #[token("do")]
+    Do,
 
     #[token("func")]
     Func,
 
     #[token("match")]
     Match,
-
-    #[token("with")]
-    With,
 
     #[token("let")]
     Let,
@@ -200,9 +187,6 @@ pub enum Token {
     #[token("str")]
     TStr,
 
-    #[token("char")]
-    TChar,
-
     #[token("int")]
     TInt,
 
@@ -222,17 +206,16 @@ mod tests {
 
     #[test]
     fn keywords() {
-        let src = "not if else then end func match with let enum struct while break continue return use export true false and or";
+        let src = "not if else then do func match let enum struct while break continue return use export true false and or";
         let mut lexer = Token::lexer(&src);
 
         assert_eq!(lexer.next(), Some(Ok(Token::Not)));
         assert_eq!(lexer.next(), Some(Ok(Token::If)));
         assert_eq!(lexer.next(), Some(Ok(Token::Else)));
         assert_eq!(lexer.next(), Some(Ok(Token::Then)));
-        assert_eq!(lexer.next(), Some(Ok(Token::End)));
+        assert_eq!(lexer.next(), Some(Ok(Token::Do)));
         assert_eq!(lexer.next(), Some(Ok(Token::Func)));
         assert_eq!(lexer.next(), Some(Ok(Token::Match)));
-        assert_eq!(lexer.next(), Some(Ok(Token::With)));
         assert_eq!(lexer.next(), Some(Ok(Token::Let)));
         assert_eq!(lexer.next(), Some(Ok(Token::Enum)));
         assert_eq!(lexer.next(), Some(Ok(Token::Struct)));
@@ -251,11 +234,10 @@ mod tests {
 
     #[test]
     fn types() {
-        let src = "str char int float bool void";
+        let src = "str int float bool void";
         let mut lexer = Token::lexer(&src);
 
         assert_eq!(lexer.next(), Some(Ok(Token::TStr)));
-        assert_eq!(lexer.next(), Some(Ok(Token::TChar)));
         assert_eq!(lexer.next(), Some(Ok(Token::TInt)));
         assert_eq!(lexer.next(), Some(Ok(Token::TFloat)));
         assert_eq!(lexer.next(), Some(Ok(Token::TBool)));
@@ -266,7 +248,7 @@ mod tests {
     #[test]
     fn others() {
         let src = r#"
-            _someId123 "Some String!!\n" 'c' 123 1.23e2
+            _someId123 "Some String!!\n" 123 1.23e2
             // some comments here!
             /* hello world */ abc
         "#;
@@ -280,7 +262,6 @@ mod tests {
             lexer.next(),
             Some(Ok(Token::Str("Some String!!\n".to_string())))
         );
-        assert_eq!(lexer.next(), Some(Ok(Token::Char('c'))));
         assert_eq!(lexer.next(), Some(Ok(Token::Int(123))));
         assert_eq!(lexer.next(), Some(Ok(Token::Float(1.23e2))));
         assert_eq!(lexer.next(), Some(Ok(Token::Ident("abc".to_string()))));

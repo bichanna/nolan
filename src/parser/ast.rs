@@ -41,22 +41,6 @@ impl Node for FloatLiteral {
 }
 
 #[derive(Debug, Clone, PartialEq)]
-pub struct CharLiteral {
-    pub value: char,
-    pub span: Span,
-}
-
-impl Node for CharLiteral {
-    fn get_span(&self) -> &Span {
-        &self.span
-    }
-
-    fn get_type(&self) -> &Type {
-        &Type::Char
-    }
-}
-
-#[derive(Debug, Clone, PartialEq)]
 pub struct StrLiteral {
     pub value: String,
     pub span: Span,
@@ -665,7 +649,6 @@ pub enum Pattern {
     Struct(Box<StructPattern>),
     Int(Box<IntLiteral>),
     Float(Box<FloatLiteral>),
-    Char(Box<CharLiteral>),
     Str(Box<StrLiteral>),
     Bool(Box<BoolLiteral>),
     List(Box<ListPattern>),
@@ -705,7 +688,6 @@ impl Node for Match {
 pub enum Expr {
     Int(Box<IntLiteral>),
     Float(Box<FloatLiteral>),
-    Char(Box<CharLiteral>),
     Str(Box<StrLiteral>),
     Bool(Box<BoolLiteral>),
     List(Box<List>),
@@ -769,7 +751,6 @@ impl Node for Expr {
         match self {
             Self::Int(ref node) => node.get_span(),
             Self::Float(ref node) => node.get_span(),
-            Self::Char(ref node) => node.get_span(),
             Self::Str(ref node) => node.get_span(),
             Self::Bool(ref node) => node.get_span(),
             Self::List(ref node) => node.get_span(),
@@ -803,7 +784,6 @@ impl Node for Expr {
         match self {
             Self::Int(ref expr) => expr.get_type(),
             Self::Float(ref node) => node.get_type(),
-            Self::Char(ref node) => node.get_type(),
             Self::Str(ref node) => node.get_type(),
             Self::Bool(ref node) => node.get_type(),
             Self::List(ref node) => node.get_type(),
