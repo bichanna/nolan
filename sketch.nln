@@ -1,0 +1,91 @@
+// Nobu's Language
+// NObu's LANguage
+
+
+/// Import statements
+use fmt;
+use fmt [println];
+
+func main(args []str) {
+    let name = "Nobu";
+    "Hello world".println();
+}
+
+
+/// Enums
+enum list[A] {
+    Nil,
+    Cons(A, List[A])
+}
+
+enum option[T] {
+    None,
+    Some(T)
+}
+
+enum result[T, E] {
+    Ok(T),
+    Err(E)
+}
+
+let linked_list = list:Cons(123) <. list:Cons(321) <. list:Nil;
+
+
+/// Structs
+struct Person {
+    age int,
+    name str
+}
+
+let nobu Person = Person { age 18, name "Nobu" };
+"{}".println(nobu'name);
+
+
+/// Functions
+pure func fizzbuzz(n int) str {
+    match <n % 3, n % 5> {
+        <0, 0> then "fizz buzz";
+        <0, _> then "fizz";
+        <_, 0> then "buzz";
+        else then n.to_str();
+    }
+}
+
+pure func greet(name option[str]) str do
+    "Hello, {}!".fmt::format([name.unwrap_or("guest")]);
+
+func check_credentials() bool {
+    let username = "Username: ".io::get_line();
+    let password = "Password: ".io::get_line_confidential();
+    password.is_right_password_for(username);
+}
+
+
+/// If expressions
+if blah {
+    // do something
+    // in multiple lines
+} else {
+    // do something else
+    // in multiple lines
+}
+
+if blah then
+    // do something in one line
+else
+    // do something in one line
+
+let abc = if blah then 123 else 321
+
+
+/// When statements
+when blah {
+    // do something
+} else {
+    // do something else
+}
+
+/// While statements
+while condition {
+    // do something
+}
