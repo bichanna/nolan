@@ -62,7 +62,7 @@ impl Display for Type {
                     format!(": {}", rt)
                 }
             ),
-            Type::Named(name) => format!("{name}"),
+            Type::Named(name) => name.to_string(),
             Type::Unknown => unimplemented!(),
         };
 

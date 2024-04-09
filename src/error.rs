@@ -42,7 +42,7 @@ pub fn report_errors<E: Reportable>(source: SourcePath, errors: Vec<E>) {
         .collect();
 
     let src = read_to_string(source.clone())
-        .expect(&format!("failed to read '{}'", source));
+        .unwrap_or_else(|_| panic!("failed to read '{}'", source));
 
     let result = Report::build(ReportKind::Error, source.clone(), 12)
         .with_labels(labels)

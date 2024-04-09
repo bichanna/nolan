@@ -335,7 +335,7 @@ impl Node for Func {
     }
 
     fn get_type(&self) -> &Type {
-        &self.closure.get_type()
+        self.closure.get_type()
     }
 }
 
