@@ -79,10 +79,10 @@ pub fn parse(source: SourcePath) -> ModParseResult<Module> {
     let (source, exprs) = Parser::new(source, lexer, current.unwrap()).parse();
 
     Ok(Module {
-        name: module_name,
+        name: module_name.clone(),
         path: source,
         expressions: exprs?,
-        type_: Type::Void,
+        type_: Type::Named(module_name),
     })
 }
 
