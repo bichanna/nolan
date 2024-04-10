@@ -6,7 +6,7 @@
 use fmt;
 use fmt [println];
 
-func main(args []str) {
+func main(args []str) void {
     let name = "Nobu";
     "Hello world".println();
 
