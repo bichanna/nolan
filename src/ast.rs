@@ -308,6 +308,7 @@ pub struct FuncParam {
 pub struct Closure {
     pub parameters: Vec<FuncParam>,
     pub return_type: SpannedType,
+    pub body: Vec<Expr>,
     pub type_: Type,
     pub span: Span,
 }
@@ -324,6 +325,8 @@ impl Node for Closure {
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Func {
+    pub pure: bool,
+    pub rec: bool,
     pub name: String,
     pub closure: Closure,
     pub span: Span,

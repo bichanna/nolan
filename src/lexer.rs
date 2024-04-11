@@ -138,6 +138,12 @@ pub enum Token {
     #[token("do")]
     Do,
 
+    #[token("pure")]
+    Pure,
+
+    #[token("rec")]
+    Rec,
+
     #[token("func")]
     Func,
 
@@ -206,7 +212,7 @@ mod tests {
 
     #[test]
     fn keywords() {
-        let src = "not if else then do func match let enum struct while break continue return use export true false and or";
+        let src = "not if else then do pure rec func match let enum struct while break continue return use export true false and or";
         let mut lexer = Token::lexer(&src);
 
         assert_eq!(lexer.next(), Some(Ok(Token::Not)));
@@ -214,6 +220,8 @@ mod tests {
         assert_eq!(lexer.next(), Some(Ok(Token::Else)));
         assert_eq!(lexer.next(), Some(Ok(Token::Then)));
         assert_eq!(lexer.next(), Some(Ok(Token::Do)));
+        assert_eq!(lexer.next(), Some(Ok(Token::Pure)));
+        assert_eq!(lexer.next(), Some(Ok(Token::Rec)));
         assert_eq!(lexer.next(), Some(Ok(Token::Func)));
         assert_eq!(lexer.next(), Some(Ok(Token::Match)));
         assert_eq!(lexer.next(), Some(Ok(Token::Let)));
