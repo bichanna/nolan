@@ -359,7 +359,6 @@ impl<'a> Parser<'a> {
         self.next();
 
         let mut enum_vars = Vec::<EnumVarDef>::new();
-
         while !matches!(self.current, Ok(Token::RightBrace)) {
             enum_vars.push(self.parse_enum_var_def()?);
             if !matches!(self.current, Ok(Token::Comma)) {
@@ -385,8 +384,89 @@ impl<'a> Parser<'a> {
         })))
     }
 
+    fn parse_struct_field_def(&mut self) -> ParseResult<StructFieldDef> {
+        let span = self.lexer.span();
+
+        let Token::Ident(field_name) = expect!(
+            self.current()?,
+            Token::Ident(..),
+            self.lexer.span(),
+            "expected an identifier for a field"
+        ) else {
+            unreachable!()
+        };
+
+        let field_name = field_name.clone();
+
+        self.next();
+
+        let field_type = self.parse_type()?;
+
+        Ok(StructFieldDef {
+            name: field_name,
+            type_: field_type,
+            span: combine(&span, &self.lexer.span()),
+        })
+    }
+
     fn parse_struct_def(&mut self) -> ParseResult<TopLevelExpr> {
-        todo!()
+        let span = self.lexer.span();
+
+        expect!(
+            self.current()?,
+            Token::Struct,
+            self.lexer.span(),
+            "expected 'struct'"
+        );
+
+        self.next();
+
+        let Token::Ident(struct_name) = expect!(
+            self.current()?,
+            Token::Ident(..),
+            self.lexer.span(),
+            "expected an identifier for a struct name"
+        ) else {
+            unreachable!()
+        };
+
+        let struct_name = struct_name.clone();
+
+        self.next();
+
+        expect!(
+            self.current()?,
+            Token::LeftBrace,
+            self.lexer.span(),
+            "expected '{'"
+        );
+
+        self.next();
+
+        let mut struct_fields = Vec::<StructFieldDef>::new();
+        while !matches!(self.current, Ok(Token::RightBrace)) {
+            struct_fields.push(self.parse_struct_field_def()?);
+            if !matches!(self.current, Ok(Token::Comma)) {
+                break;
+            } else {
+                self.next();
+            }
+        }
+
+        expect!(
+            self.current()?,
+            Token::RightBrace,
+            self.lexer.span(),
+            "expected '}' after struct fields"
+        );
+
+        self.next();
+
+        Ok(TopLevelExpr::StructDef(Box::new(StructDef {
+            name: struct_name,
+            fields: struct_fields,
+            span: combine(&span, &self.lexer.span()),
+        })))
     }
 
     fn parse_func(&mut self) -> ParseResult<TopLevelExpr> {

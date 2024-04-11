@@ -220,7 +220,7 @@ impl Node for Call {
 }
 
 #[derive(Debug, Clone, PartialEq)]
-pub struct StructPropDef {
+pub struct StructFieldDef {
     pub name: String,
     pub type_: SpannedType,
     pub span: Span,
@@ -229,7 +229,7 @@ pub struct StructPropDef {
 #[derive(Debug, Clone, PartialEq)]
 pub struct StructDef {
     pub name: String,
-    pub properties: Vec<StructPropDef>,
+    pub fields: Vec<StructFieldDef>,
     pub span: Span,
 }
 
