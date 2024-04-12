@@ -143,7 +143,7 @@ impl<'a> Parser<'a> {
         match current {
             Token::Enum => self.parse_enum_def(),
             Token::Struct => self.parse_struct_def(),
-            Token::Func => self.parse_func(),
+            Token::Func | Token::Pure | Token::Rec => self.parse_func(),
             Token::Use => self.parse_use(),
             Token::Export => self.parse_export(),
             _ => throw_error!(
@@ -469,8 +469,157 @@ impl<'a> Parser<'a> {
         })))
     }
 
+    fn parse_params(&mut self) -> ParseResult<Vec<FuncParam>> {
+        expect!(
+            self.current()?,
+            Token::RightParen,
+            self.lexer.span(),
+            "expected '('"
+        );
+
+        self.next();
+
+        let mut params = Vec::<FuncParam>::new();
+
+        while !matches!(self.current, Ok(Token::LeftParen)) {
+            let span = self.lexer.span();
+
+            let Token::Ident(param_name) = expect!(
+                self.current()?,
+                Token::Ident(..),
+                self.lexer.span(),
+                "expected a parameter name"
+            ) else {
+                unreachable!()
+            };
+
+            let param_name = param_name.clone();
+
+            self.next();
+
+            let param_type = self.parse_type()?;
+
+            let param = FuncParam {
+                name: param_name,
+                type_: param_type,
+                span: combine(&span, &self.lexer.span()),
+            };
+
+            params.push(param);
+
+            if !matches!(self.current, Ok(Token::Comma)) {
+                break;
+            } else {
+                self.next();
+            }
+        }
+
+        expect!(
+            self.current()?,
+            Token::RightParen,
+            self.lexer.span(),
+            "expected ')' after parameters"
+        );
+
+        self.next();
+
+        Ok(params)
+    }
+
     fn parse_func(&mut self) -> ParseResult<TopLevelExpr> {
-        todo!()
+        let span = self.lexer.span();
+
+        let pure = if matches!(self.current, Ok(Token::Pure)) {
+            self.next();
+            true
+        } else {
+            false
+        };
+
+        let rec = if matches!(self.current, Ok(Token::Rec)) {
+            self.next();
+            true
+        } else {
+            false
+        };
+
+        expect!(
+            self.current()?,
+            Token::Func,
+            self.lexer.span(),
+            "expected 'func'"
+        );
+
+        self.next();
+
+        let Token::Ident(func_name) = expect!(
+            self.current()?,
+            Token::Ident(..),
+            self.lexer.span(),
+            "expected an identifier for a function name"
+        ) else {
+            unreachable!()
+        };
+
+        let func_name = func_name.clone();
+
+        self.next();
+
+        let params = self.parse_params()?;
+
+        let return_type = self.parse_type()?;
+
+        let body = if matches!(self.current, Ok(Token::Do)) {
+            self.next();
+            todo!() // TODO: implement this after self.parse_expression()
+        } else {
+            expect!(
+                self.current()?,
+                Token::LeftBrace,
+                self.lexer.span(),
+                "expected '{' for the start of a function body"
+            );
+
+            self.next();
+
+            let mut body = Vec::<Expr>::new();
+
+            while !matches!(self.current, Ok(Token::RightBrace)) {
+                // TODO: implement this after self.parse_expression()
+                if !matches!(self.current, Ok(Token::Comma)) {
+                    break;
+                } else {
+                    self.next();
+                }
+            }
+
+            expect!(
+                self.current()?,
+                Token::RightBrace,
+                self.lexer.span(),
+                "expected '}' after function body"
+            );
+
+            self.next();
+
+            body
+        };
+
+        let span = combine(&span, &self.lexer.span());
+
+        Ok(TopLevelExpr::Func(Box::new(Func {
+            pure,
+            rec,
+            name: func_name,
+            closure: Closure {
+                parameters: params,
+                return_type,
+                body,
+                type_: Type::Unknown,
+                span: span.clone(),
+            },
+            span,
+        })))
     }
 
     fn parse_use(&mut self) -> ParseResult<TopLevelExpr> {
