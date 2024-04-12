@@ -623,7 +623,75 @@ impl<'a> Parser<'a> {
     }
 
     fn parse_use(&mut self) -> ParseResult<TopLevelExpr> {
-        todo!()
+        let span = self.lexer.span();
+
+        expect!(
+            self.current()?,
+            Token::Use,
+            self.lexer.span(),
+            "expected 'use'"
+        );
+
+        self.next();
+
+        let Token::Ident(mod_name) = expect!(
+            self.current()?,
+            Token::Ident(..),
+            self.lexer.span(),
+            "expected a module name"
+        ) else {
+            unreachable!()
+        };
+
+        let mod_name = mod_name.clone();
+
+        self.next();
+
+        let mut import_symbols: Option<Vec<String>> = None;
+
+        if matches!(self.current, Ok(Token::LeftBrak)) {
+            self.next();
+
+            let mut imports = Vec::<String>::new();
+
+            while !matches!(self.current, Ok(Token::RightBrak)) {
+                let Token::Ident(import) = expect!(
+                    self.current()?,
+                    Token::Ident(..),
+                    self.lexer.span(),
+                    "expected an identifier"
+                ) else {
+                    unreachable!()
+                };
+
+                imports.push(import.clone());
+
+                self.next();
+
+                if !matches!(self.current, Ok(Token::Comma)) {
+                    break;
+                } else {
+                    self.next();
+                }
+            }
+
+            expect!(
+                self.current()?,
+                Token::RightBrak,
+                self.lexer.span(),
+                "expected ']' after import"
+            );
+
+            self.next();
+
+            import_symbols = Some(imports);
+        }
+
+        Ok(TopLevelExpr::Use(Box::new(Use {
+            module: mod_name,
+            imports: import_symbols,
+            span: combine(&span, &self.lexer.span()),
+        })))
     }
 
     fn parse_export(&mut self) -> ParseResult<TopLevelExpr> {
