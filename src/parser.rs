@@ -786,6 +786,267 @@ impl<'a> Parser<'a> {
     }
 
     fn parse_or(&mut self) -> ParseResult<Expr> {
+        let mut expr = self.parse_and()?;
+
+        while matches!(self.current, Ok(Token::Or)) {
+            let span = self.lexer.span();
+
+            self.next();
+
+            expr = Expr::binary(
+                expr,
+                BinaryOp { kind: BinaryOpKind::Or, span },
+                self.parse_and()?,
+                Some(Type::Bool),
+            )
+        }
+
+        Ok(expr)
+    }
+
+    fn parse_and(&mut self) -> ParseResult<Expr> {
+        let mut expr = self.parse_eq()?;
+
+        while matches!(self.current, Ok(Token::And)) {
+            let span = self.lexer.span();
+
+            self.next();
+
+            expr = Expr::binary(
+                expr,
+                BinaryOp { kind: BinaryOpKind::And, span },
+                self.parse_eq()?,
+                Some(Type::Bool),
+            )
+        }
+
+        Ok(expr)
+    }
+
+    fn parse_eq(&mut self) -> ParseResult<Expr> {
+        let mut expr = self.parse_compare()?;
+
+        while matches!(self.current, Ok(Token::NotEq) | Ok(Token::DEq)) {
+            let span = self.lexer.span();
+            let bin_op_kind = BinaryOpKind::from(self.current()?);
+            let bin_op = BinaryOp { kind: bin_op_kind, span };
+
+            self.next();
+
+            expr = Expr::binary(
+                expr,
+                bin_op,
+                self.parse_compare()?,
+                Some(Type::Bool),
+            );
+        }
+
+        Ok(expr)
+    }
+
+    fn parse_compare(&mut self) -> ParseResult<Expr> {
+        let mut expr = self.parse_term()?;
+
+        while matches!(
+            self.current,
+            Ok(Token::GT) | Ok(Token::LT) | Ok(Token::GE) | Ok(Token::LE)
+        ) {
+            let span = self.lexer.span();
+            let bin_op_kind = BinaryOpKind::from(self.current()?);
+            let bin_op = BinaryOp { kind: bin_op_kind, span };
+
+            self.next();
+
+            expr = Expr::binary(
+                expr,
+                bin_op,
+                self.parse_term()?,
+                Some(Type::Bool),
+            );
+        }
+
+        Ok(expr)
+    }
+
+    fn parse_term(&mut self) -> ParseResult<Expr> {
+        let mut expr = self.parse_factor()?;
+
+        while matches!(self.current, Ok(Token::Minus) | Ok(Token::Plus)) {
+            let span = self.lexer.span();
+            let bin_op_kind = BinaryOpKind::from(self.current()?);
+            let bin_op = BinaryOp { kind: bin_op_kind, span };
+
+            self.next();
+
+            expr = Expr::binary(expr, bin_op, self.parse_factor()?, None);
+        }
+
+        Ok(expr)
+    }
+
+    fn parse_factor(&mut self) -> ParseResult<Expr> {
+        let mut expr = self.parse_unary()?;
+
+        while matches!(
+            self.current,
+            Ok(Token::Div) | Ok(Token::Rem) | Ok(Token::Mul)
+        ) {
+            let span = self.lexer.span();
+            let bin_op_kind = BinaryOpKind::from(self.current()?);
+            let bin_op = BinaryOp { kind: bin_op_kind, span };
+
+            self.next();
+
+            expr = Expr::binary(expr, bin_op, self.parse_unary()?, None);
+        }
+
+        Ok(expr)
+    }
+
+    fn parse_unary(&mut self) -> ParseResult<Expr> {
+        let expr = if matches!(self.current, Ok(Token::Not) | Ok(Token::Minus))
+        {
+            let span = self.lexer.span();
+            let unary_op_kind = UnaryOpKind::from(self.current()?);
+            let unary_op = UnaryOp { kind: unary_op_kind, span };
+
+            self.next();
+
+            Expr::unary(unary_op, self.parse_unary()?, None)
+        } else {
+            self.parse_call(None)?
+        };
+
+        Ok(expr)
+    }
+
+    fn parse_call(&mut self, mut arg: Option<Expr>) -> ParseResult<Expr> {
+        let mut expr = self.parse_primary()?;
+
+        loop {
+            match self.current()? {
+                Token::LeftParen => {
+                    expr = self.finish_call(expr, arg)?;
+                    arg = None;
+                }
+                Token::Dot => {
+                    self.next();
+                    expr = self.parse_call(Some(expr))?;
+                    break;
+                }
+                Token::LeftBrak => {
+                    if arg.is_some() {
+                        throw_error!(
+                            self.lexer.span(),
+                            "unexpected expressions: {:?}",
+                            arg.unwrap()
+                        );
+                    }
+
+                    expr = self.parse_indexing(expr)?;
+                }
+                _ => break,
+            }
+        }
+
+        Ok(expr)
+    }
+
+    fn parse_indexing(&mut self, source: Expr) -> ParseResult<Expr> {
+        let span = self.lexer.span();
+
+        expect!(
+            self.current()?,
+            Token::LeftBrak,
+            self.lexer.span(),
+            "expected '['"
+        );
+
+        self.next();
+
+        let index = self.parse_expression()?;
+
+        expect!(
+            self.current()?,
+            Token::RightBrak,
+            self.lexer.span(),
+            "expected ']"
+        );
+
+        self.next();
+
+        Ok(Expr::Index(Box::new(Index {
+            source,
+            index,
+            type_: Type::Unknown,
+            span: combine(&span, &self.lexer.span()),
+        })))
+    }
+
+    fn finish_call(
+        &mut self,
+        callee: Expr,
+        arg: Option<Expr>,
+    ) -> ParseResult<Expr> {
+        let span = self.lexer.span();
+
+        expect!(
+            self.current()?,
+            Token::LeftParen,
+            self.lexer.span(),
+            "expected '('"
+        );
+
+        self.next();
+
+        let mut args = Vec::<Expr>::new();
+
+        if let Some(arg) = arg {
+            args.push(arg);
+        }
+
+        if !matches!(self.current, Ok(Token::RightParen)) {
+            args.push(self.parse_expression()?);
+
+            while matches!(self.current, Ok(Token::Comma)) {
+                self.next();
+
+                if args.len() > 127 {
+                    // C99 standard
+                    throw_error!(
+                        combine(&span, &self.lexer.span(),),
+                        "too many arguments passed to function"
+                    );
+                }
+
+                args.push(self.parse_expression()?);
+            }
+        }
+
+        expect!(
+            self.current()?,
+            Token::RightParen,
+            self.lexer.span(),
+            "expected ')' after function call"
+        );
+
+        self.next();
+
+        // Check for `<.`
+        if matches!(self.current, Ok(Token::LDot)) {
+            self.next();
+            args.push(self.parse_expression()?);
+        }
+
+        Ok(Expr::Call(Box::new(Call {
+            callee,
+            arguments: args,
+            type_: Type::Unknown,
+            span: combine(&span, &self.lexer.span()),
+        })))
+    }
+
+    fn parse_primary(&mut self) -> ParseResult<Expr> {
         todo!()
     }
 }

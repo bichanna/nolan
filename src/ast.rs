@@ -1,6 +1,7 @@
 use std::fmt::Debug;
 
 use crate::error::{combine, SourcePath, Span, Spanned};
+use crate::lexer::Token;
 use crate::types::{SpannedType, Type};
 
 pub trait Node {
@@ -359,6 +360,27 @@ pub enum BinaryOpKind {
     Or,
 }
 
+impl From<&Token> for BinaryOpKind {
+    fn from(value: &Token) -> Self {
+        match value {
+            Token::Plus => Self::Add,
+            Token::Minus => Self::Sub,
+            Token::Mul => Self::Mul,
+            Token::Div => Self::Div,
+            Token::Rem => Self::Rem,
+            Token::GT => Self::GT,
+            Token::LT => Self::LT,
+            Token::GE => Self::GE,
+            Token::LE => Self::LE,
+            Token::DEq => Self::Eq,
+            Token::NotEq => Self::NEq,
+            Token::And => Self::And,
+            Token::Or => Self::Or,
+            _ => Self::Eq,
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq)]
 pub struct BinaryOp {
     pub kind: BinaryOpKind,
@@ -388,6 +410,16 @@ impl Node for Binary {
 pub enum UnaryOpKind {
     NegBool,
     NegNum,
+}
+
+impl From<&Token> for UnaryOpKind {
+    fn from(value: &Token) -> Self {
+        match value {
+            Token::Not => Self::NegBool,
+            Token::Minus => Self::NegNum,
+            _ => Self::NegBool,
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq)]
