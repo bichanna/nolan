@@ -3,7 +3,7 @@ use std::fs;
 use logos::{Lexer, Logos};
 
 use crate::ast::*;
-use crate::error::{combine, LexError, ParseError, ParseErrorKind};
+use crate::error::{combine, LexError, ParseError, ParseErrorKind, Span};
 use crate::error::{SourcePath, Spanned};
 use crate::lexer::Token;
 use crate::types::{SpannedType, Type};
@@ -571,7 +571,7 @@ impl<'a> Parser<'a> {
 
         let body = if matches!(self.current, Ok(Token::Do)) {
             self.next();
-            todo!() // TODO: implement this after self.parse_expression()
+            vec![self.parse_standalone_expression()?]
         } else {
             expect!(
                 self.current()?,
@@ -585,7 +585,8 @@ impl<'a> Parser<'a> {
             let mut body = Vec::<Expr>::new();
 
             while !matches!(self.current, Ok(Token::RightBrace)) {
-                // TODO: implement this after self.parse_expression()
+                body.push(self.parse_standalone_expression()?);
+
                 if !matches!(self.current, Ok(Token::Comma)) {
                     break;
                 } else {
@@ -695,6 +696,96 @@ impl<'a> Parser<'a> {
     }
 
     fn parse_export(&mut self) -> ParseResult<TopLevelExpr> {
+        todo!()
+    }
+
+    fn parse_standalone_expression(&mut self) -> ParseResult<Expr> {
+        let expr = self.parse_expression()?;
+
+        expect!(
+            self.current()?,
+            Token::SemiColon,
+            self.lexer.span(),
+            "expected ';' after an expression"
+        );
+
+        self.next();
+
+        Ok(expr)
+    }
+
+    fn parse_expression(&mut self) -> ParseResult<Expr> {
+        self.parse_assignment()
+    }
+
+    fn parse_assignment(&mut self) -> ParseResult<Expr> {
+        let span = self.lexer.span();
+        let expr = self.parse_or()?;
+
+        match self.current()? {
+            Token::Eq => self.parse_assign_var(span, expr),
+            Token::PlusEq => {
+                self.parse_binary_assign(span, expr, BinaryOpKind::Add)
+            }
+            Token::MinusEq => {
+                self.parse_binary_assign(span, expr, BinaryOpKind::Sub)
+            }
+            Token::MulEq => {
+                self.parse_binary_assign(span, expr, BinaryOpKind::Mul)
+            }
+            Token::DivEq => {
+                self.parse_binary_assign(span, expr, BinaryOpKind::Div)
+            }
+            Token::RemEq => {
+                self.parse_binary_assign(span, expr, BinaryOpKind::Rem)
+            }
+            _ => Ok(expr),
+        }
+    }
+
+    fn parse_assign_var(
+        &mut self,
+        span: Span,
+        left: Expr,
+    ) -> ParseResult<Expr> {
+        expect!(self.current()?, Token::Eq, self.lexer.span(), "expected '='");
+
+        self.next();
+
+        let right_val = self.parse_expression()?;
+
+        Ok(Expr::AssignVar(Box::new(AssignVar {
+            left,
+            value: right_val,
+            type_: Type::Unknown,
+            span: combine(&span, &self.lexer.span()),
+        })))
+    }
+
+    fn parse_binary_assign(
+        &mut self,
+        span: Span,
+        expr: Expr,
+        bin_op_kind: BinaryOpKind,
+    ) -> ParseResult<Expr> {
+        let op_span = self.lexer.span();
+
+        self.next();
+
+        let bin_op = BinaryOp { kind: bin_op_kind, span: op_span };
+
+        let bin =
+            Expr::binary(expr.clone(), bin_op, self.parse_expression()?, None);
+
+        Ok(Expr::AssignVar(Box::new(AssignVar {
+            left: expr,
+            value: bin,
+            type_: Type::Unknown,
+            span: combine(&span, &self.lexer.span()),
+        })))
+    }
+
+    fn parse_or(&mut self) -> ParseResult<Expr> {
         todo!()
     }
 }

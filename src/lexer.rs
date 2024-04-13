@@ -113,6 +113,9 @@ pub enum Token {
     #[token(".")]
     Dot,
 
+    #[token(";")]
+    SemiColon,
+
     #[token(":")]
     Colon,
 

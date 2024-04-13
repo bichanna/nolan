@@ -470,7 +470,7 @@ impl Node for When {
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct AssignVar {
-    pub name: String,
+    pub left: Expr,
     pub value: Expr,
     pub type_: Type,
     pub span: Span,
