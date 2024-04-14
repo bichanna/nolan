@@ -168,10 +168,12 @@ impl<'a> Parser<'a> {
             "expected ']'"
         );
 
+        self.next();
+
         let inner_type = self.parse_type()?;
 
         Ok(Spanned(
-            Type::List(Box::new(inner_type.clone())),
+            Type::List(Box::new(inner_type.0.clone())),
             combine(&span, &inner_type.1),
         ))
     }
@@ -183,9 +185,9 @@ impl<'a> Parser<'a> {
 
         self.next();
 
-        let mut types = Vec::<SpannedType>::new();
+        let mut types = Vec::<Type>::new();
         while !matches!(self.current, Ok(Token::GT)) {
-            types.push(self.parse_type()?);
+            types.push(self.parse_type()?.0);
 
             if !matches!(self.current, Ok(Token::Comma)) {
                 break;
@@ -929,11 +931,13 @@ impl<'a> Parser<'a> {
                     expr = self.finish_call(expr, arg)?;
                     arg = None;
                 }
+
                 Token::Dot => {
                     self.next();
                     expr = self.parse_call(Some(expr))?;
                     break;
                 }
+
                 Token::LeftBrak => {
                     if arg.is_some() {
                         throw_error!(
@@ -945,6 +949,7 @@ impl<'a> Parser<'a> {
 
                     expr = self.parse_indexing(expr)?;
                 }
+
                 Token::LeftBrace => {
                     if arg.is_some() {
                         throw_error!(
@@ -956,11 +961,168 @@ impl<'a> Parser<'a> {
 
                     expr = self.parse_struct_init(expr)?;
                 }
+
+                Token::Colon => {
+                    if arg.is_some() {
+                        throw_error!(
+                            self.lexer.span(),
+                            "unexpected expressions: {:?}",
+                            arg.unwrap()
+                        );
+                    }
+
+                    expr = self.parse_enum_var_access(expr)?;
+                }
+
+                Token::SingleQuote => {
+                    if arg.is_some() {
+                        throw_error!(
+                            self.lexer.span(),
+                            "unexpected expressions: {:?}",
+                            arg.unwrap()
+                        );
+                    }
+
+                    expr = self.parse_struct_field_access(expr)?;
+                }
+
+                Token::DColon => {
+                    if arg.is_some() {
+                        throw_error!(
+                            self.lexer.span(),
+                            "unexpected expressions: {:?}",
+                            arg.unwrap()
+                        );
+                    }
+
+                    expr = self.parse_module_access(expr)?;
+                }
+
                 _ => break,
             }
         }
 
         Ok(expr)
+    }
+
+    fn parse_module_access(&mut self, left: Expr) -> ParseResult<Expr> {
+        let span = self.lexer.span();
+
+        let module: String;
+
+        match left {
+            Expr::Ident(ident) => module = ident.name,
+            _ => {
+                throw_error!(left.get_span().clone(), "expected a module name")
+            }
+        }
+
+        expect!(
+            self.current()?,
+            Token::SingleQuote,
+            self.lexer.span(),
+            "expected \"'\""
+        );
+
+        self.next();
+
+        let Token::Ident(constant) = expect!(
+            self.current()?,
+            Token::Ident(..),
+            self.lexer.span(),
+            "expected an identifier"
+        ) else {
+            unreachable!()
+        };
+
+        let constant = constant.clone();
+
+        Ok(Expr::ModAccess(Box::new(ModAccess {
+            module: module.clone(),
+            constant,
+            span: combine(&span, &self.lexer.span()),
+            type_: Type::Named(module),
+        })))
+    }
+
+    fn parse_struct_field_access(&mut self, left: Expr) -> ParseResult<Expr> {
+        let span = self.lexer.span();
+
+        let source: String;
+
+        match left {
+            Expr::Ident(ident) => source = ident.name,
+            _ => {
+                throw_error!(left.get_span().clone(), "expected a struct name")
+            }
+        }
+
+        expect!(
+            self.current()?,
+            Token::SingleQuote,
+            self.lexer.span(),
+            "expected \"'\""
+        );
+
+        self.next();
+
+        let Token::Ident(field) = expect!(
+            self.current()?,
+            Token::Ident(..),
+            self.lexer.span(),
+            "expected a field name"
+        ) else {
+            unreachable!()
+        };
+
+        let field = field.clone();
+
+        Ok(Expr::StructFieldAccess(Box::new(StructFieldAccess {
+            source: source.clone(),
+            field,
+            span: combine(&span, &self.lexer.span()),
+            type_: Type::Named(source),
+        })))
+    }
+
+    fn parse_enum_var_access(&mut self, left: Expr) -> ParseResult<Expr> {
+        let span = self.lexer.span();
+
+        let source: String;
+
+        match left {
+            Expr::Ident(ident) => source = ident.name,
+            _ => {
+                throw_error!(left.get_span().clone(), "expected an enum name")
+            }
+        }
+
+        expect!(
+            self.current()?,
+            Token::Colon,
+            self.lexer.span(),
+            "expected ':'"
+        );
+
+        self.next();
+
+        let Token::Ident(variant) = expect!(
+            self.current()?,
+            Token::Ident(..),
+            self.lexer.span(),
+            "expected a variant name"
+        ) else {
+            unreachable!()
+        };
+
+        let variant = variant.clone();
+
+        Ok(Expr::EnumVarAccess(Box::new(EnumVarAccess {
+            source: source.clone(),
+            variant,
+            span: combine(&span, &self.lexer.span()),
+            type_: Type::Named(source),
+        })))
     }
 
     fn parse_struct_init(&mut self, left: Expr) -> ParseResult<Expr> {
@@ -1133,6 +1295,122 @@ impl<'a> Parser<'a> {
     }
 
     fn parse_primary(&mut self) -> ParseResult<Expr> {
-        todo!()
+        let span = self.lexer.span();
+
+        match self.current {
+            Ok(Token::True) => {
+                Ok(Expr::Bool(Box::new(BoolLiteral { value: true, span })))
+            }
+
+            Ok(Token::False) => {
+                Ok(Expr::Bool(Box::new(BoolLiteral { value: false, span })))
+            }
+
+            Ok(Token::Int(value)) => {
+                Ok(Expr::Int(Box::new(IntLiteral { value, span })))
+            }
+
+            Ok(Token::Float(value)) => {
+                Ok(Expr::Float(Box::new(FloatLiteral { value, span })))
+            }
+
+            Ok(Token::Str(ref value)) => Ok(Expr::Str(Box::new(StrLiteral {
+                value: value.clone(),
+                span,
+            }))),
+
+            Ok(Token::LeftBrak) => {
+                Ok(Expr::List(Box::new(self.parse_list_literal()?)))
+            }
+
+            Ok(Token::LT) => {
+                Ok(Expr::Tuple(Box::new(self.parse_tuple_literal()?)))
+            }
+
+            Ok(Token::Ident(ref ident)) => Ok(Expr::Ident(Box::new(Ident {
+                name: ident.clone(),
+                span,
+                type_: Type::Unknown,
+            }))),
+
+            // TODO: implement the rest
+            Err(ref err) => {
+                Err(Spanned(ParseErrorKind::LexErr(err.clone()), span))
+            }
+
+            _ => {
+                let current = self.current()?.clone();
+                self.next();
+                throw_error!(span, "unexpected token: '{:?}'", current);
+            }
+        }
+    }
+
+    fn parse_list_literal(&mut self) -> ParseResult<List> {
+        let span = self.lexer.span();
+
+        expect!(
+            self.current()?,
+            Token::LeftBrak,
+            self.lexer.span(),
+            "expected '['"
+        );
+
+        self.next();
+
+        let mut elements = Vec::<Expr>::new();
+        while !matches!(self.current, Ok(Token::RightBrak)) {
+            elements.push(self.parse_expression()?);
+
+            if !matches!(self.current, Ok(Token::Comma)) {
+                break;
+            } else {
+                self.next();
+            }
+        }
+
+        expect!(
+            self.current()?,
+            Token::RightBrak,
+            self.lexer.span(),
+            "expected ']'"
+        );
+
+        self.next();
+
+        Ok(List {
+            elements,
+            span: combine(&span, &self.lexer.span()),
+            type_: Type::List(Box::new(Type::Unknown)),
+        })
+    }
+
+    fn parse_tuple_literal(&mut self) -> ParseResult<Tuple> {
+        let span = self.lexer.span();
+
+        expect!(self.current()?, Token::LT, self.lexer.span(), "expected '<'");
+
+        self.next();
+
+        let mut values = Vec::<Expr>::new();
+        while !matches!(self.current, Ok(Token::GT)) {
+            values.push(self.parse_expression()?);
+
+            if !matches!(self.current, Ok(Token::Comma)) {
+                break;
+            } else {
+                self.next();
+            }
+        }
+
+        expect!(self.current()?, Token::GT, self.lexer.span(), "expected '>'");
+
+        self.next();
+
+        Ok(Tuple {
+            values,
+            span: combine(&span, &self.lexer.span()),
+            type_: Type::Tup(vec![Type::Unknown]),
+        })
     }
 }

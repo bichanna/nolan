@@ -12,8 +12,8 @@ pub enum Type {
     Str,                                      // str
     Bool,                                     // bool
     Void,                                     // void
-    List(Box<SpannedType>),                   // []`Type`
-    Tup(Vec<SpannedType>),                    // <`Type`...>
+    List(Box<Type>),                          // []`Type`
+    Tup(Vec<Type>),                           // <`Type`...>
     Func(Vec<SpannedType>, Box<SpannedType>), // func(`Type`...): `Type`
     Named(String),
     Unknown,

@@ -143,14 +143,14 @@ impl Node for EnumVarAccess {
 }
 
 #[derive(Debug, Clone, PartialEq)]
-pub struct StructAccess {
+pub struct StructFieldAccess {
     pub source: String,
-    pub property: String,
+    pub field: String,
     pub span: Span,
     pub type_: Type,
 }
 
-impl Node for StructAccess {
+impl Node for StructFieldAccess {
     fn get_span(&self) -> &Span {
         &self.span
     }
@@ -729,7 +729,7 @@ pub enum Expr {
     Tuple(Box<Tuple>),
     Ident(Box<Ident>),
     EnumVarAccess(Box<EnumVarAccess>),
-    StructAccess(Box<StructAccess>),
+    StructFieldAccess(Box<StructFieldAccess>),
     ModAccess(Box<ModAccess>),
     EnumDef(Box<EnumDef>),
     Call(Box<Call>),
@@ -792,7 +792,7 @@ impl Node for Expr {
             Self::Tuple(ref node) => node.get_span(),
             Self::Ident(ref node) => node.get_span(),
             Self::EnumVarAccess(ref node) => node.get_span(),
-            Self::StructAccess(ref node) => node.get_span(),
+            Self::StructFieldAccess(ref node) => node.get_span(),
             Self::ModAccess(ref node) => node.get_span(),
             Self::EnumDef(ref node) => node.get_span(),
             Self::Call(ref node) => node.get_span(),
@@ -825,7 +825,7 @@ impl Node for Expr {
             Self::Tuple(ref node) => node.get_type(),
             Self::Ident(ref node) => node.get_type(),
             Self::EnumVarAccess(ref node) => node.get_type(),
-            Self::StructAccess(ref node) => node.get_type(),
+            Self::StructFieldAccess(ref node) => node.get_type(),
             Self::ModAccess(ref node) => node.get_type(),
             Self::EnumDef(ref node) => node.get_type(),
             Self::Call(ref node) => node.get_type(),
