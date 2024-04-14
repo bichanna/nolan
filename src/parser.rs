@@ -945,11 +945,97 @@ impl<'a> Parser<'a> {
 
                     expr = self.parse_indexing(expr)?;
                 }
+                Token::LeftBrace => {
+                    if arg.is_some() {
+                        throw_error!(
+                            self.lexer.span(),
+                            "unexpected expressions: {:?}",
+                            arg.unwrap()
+                        );
+                    }
+
+                    expr = self.parse_struct_init(expr)?;
+                }
                 _ => break,
             }
         }
 
         Ok(expr)
+    }
+
+    fn parse_struct_init(&mut self, left: Expr) -> ParseResult<Expr> {
+        let span = self.lexer.span();
+
+        let struct_name: String;
+
+        match left {
+            Expr::Ident(ident) => struct_name = ident.name,
+            _ => {
+                throw_error!(left.get_span().clone(), "expected a struct name")
+            }
+        }
+
+        expect!(
+            self.current()?,
+            Token::LeftBrace,
+            self.lexer.span(),
+            "expected '{'"
+        );
+
+        self.next();
+
+        let mut init_args = Vec::<StructInitArg>::new();
+
+        while !matches!(self.current, Ok(Token::RightBrace)) {
+            init_args.push(self.parse_struct_init_arg()?);
+
+            if !matches!(self.current, Ok(Token::Comma)) {
+                break;
+            } else {
+                self.next();
+            }
+        }
+
+        expect!(
+            self.current()?,
+            Token::RightBrace,
+            self.lexer.span(),
+            "expected '}'"
+        );
+
+        self.next();
+
+        Ok(Expr::StructInit(Box::new(StructInit {
+            name: struct_name.clone(),
+            arguments: init_args,
+            type_: Type::Named(struct_name),
+            span: combine(&span, &self.lexer.span()),
+        })))
+    }
+
+    fn parse_struct_init_arg(&mut self) -> ParseResult<StructInitArg> {
+        let span = self.lexer.span();
+
+        let Token::Ident(name) = expect!(
+            self.current()?,
+            Token::Ident(..),
+            self.lexer.span(),
+            "expected a field name"
+        ) else {
+            unreachable!()
+        };
+
+        let name = name.clone();
+
+        self.next();
+
+        let value = self.parse_expression()?;
+
+        Ok(StructInitArg {
+            name,
+            value,
+            span: combine(&span, &self.lexer.span()),
+        })
     }
 
     fn parse_indexing(&mut self, source: Expr) -> ParseResult<Expr> {
