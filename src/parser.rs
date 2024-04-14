@@ -474,7 +474,7 @@ impl<'a> Parser<'a> {
     fn parse_params(&mut self) -> ParseResult<Vec<FuncParam>> {
         expect!(
             self.current()?,
-            Token::RightParen,
+            Token::LeftParen,
             self.lexer.span(),
             "expected '('"
         );
@@ -483,7 +483,7 @@ impl<'a> Parser<'a> {
 
         let mut params = Vec::<FuncParam>::new();
 
-        while !matches!(self.current, Ok(Token::LeftParen)) {
+        while !matches!(self.current, Ok(Token::RightParen)) {
             let span = self.lexer.span();
 
             let Token::Ident(param_name) = expect!(
@@ -526,6 +526,40 @@ impl<'a> Parser<'a> {
         self.next();
 
         Ok(params)
+    }
+
+    fn parse_curly_body(&mut self) -> ParseResult<Vec<Expr>> {
+        expect!(
+            self.current()?,
+            Token::LeftBrace,
+            self.lexer.span(),
+            "expected '{' for the start of a function body"
+        );
+
+        self.next();
+
+        let mut body = Vec::<Expr>::new();
+
+        while !matches!(self.current, Ok(Token::RightBrace)) {
+            body.push(self.parse_standalone_expression()?);
+
+            if !matches!(self.current, Ok(Token::Comma)) {
+                break;
+            } else {
+                self.next();
+            }
+        }
+
+        expect!(
+            self.current()?,
+            Token::RightBrace,
+            self.lexer.span(),
+            "expected '}' after function body"
+        );
+
+        self.next();
+
+        Ok(body)
     }
 
     fn parse_func(&mut self) -> ParseResult<TopLevelExpr> {
@@ -575,37 +609,7 @@ impl<'a> Parser<'a> {
             self.next();
             vec![self.parse_standalone_expression()?]
         } else {
-            expect!(
-                self.current()?,
-                Token::LeftBrace,
-                self.lexer.span(),
-                "expected '{' for the start of a function body"
-            );
-
-            self.next();
-
-            let mut body = Vec::<Expr>::new();
-
-            while !matches!(self.current, Ok(Token::RightBrace)) {
-                body.push(self.parse_standalone_expression()?);
-
-                if !matches!(self.current, Ok(Token::Comma)) {
-                    break;
-                } else {
-                    self.next();
-                }
-            }
-
-            expect!(
-                self.current()?,
-                Token::RightBrace,
-                self.lexer.span(),
-                "expected '}' after function body"
-            );
-
-            self.next();
-
-            body
+            self.parse_curly_body()?
         };
 
         let span = combine(&span, &self.lexer.span());
@@ -1319,13 +1323,9 @@ impl<'a> Parser<'a> {
                 span,
             }))),
 
-            Ok(Token::LeftBrak) => {
-                Ok(Expr::List(Box::new(self.parse_list_literal()?)))
-            }
+            Ok(Token::LeftBrak) => self.parse_list_literal(),
 
-            Ok(Token::LT) => {
-                Ok(Expr::Tuple(Box::new(self.parse_tuple_literal()?)))
-            }
+            Ok(Token::LT) => self.parse_tuple_literal(),
 
             Ok(Token::Ident(ref ident)) => Ok(Expr::Ident(Box::new(Ident {
                 name: ident.clone(),
@@ -1333,10 +1333,29 @@ impl<'a> Parser<'a> {
                 type_: Type::Unknown,
             }))),
 
-            // TODO: implement the rest
+            Ok(Token::BackSlash) => self.parse_closure(),
+
             Err(ref err) => {
                 Err(Spanned(ParseErrorKind::LexErr(err.clone()), span))
             }
+
+            Ok(Token::If) => self.parse_if(),
+
+            Ok(Token::When) => self.parse_when(),
+
+            Ok(Token::While) => self.parse_while(),
+
+            Ok(Token::Let) => self.parse_let(),
+
+            Ok(Token::Break) => self.parse_break(),
+
+            Ok(Token::Return) => self.parse_return(),
+
+            Ok(Token::Void) => {
+                Ok(Expr::Void(Box::new(Void { span: self.lexer.span() })))
+            }
+
+            Ok(Token::Match) => self.parse_match(),
 
             _ => {
                 let current = self.current()?.clone();
@@ -1346,7 +1365,219 @@ impl<'a> Parser<'a> {
         }
     }
 
-    fn parse_list_literal(&mut self) -> ParseResult<List> {
+    fn parse_match(&mut self) -> ParseResult<Expr> {
+        todo!()
+    }
+
+    fn parse_return(&mut self) -> ParseResult<Expr> {
+        let span = self.lexer.span();
+
+        expect!(
+            self.current()?,
+            Token::Return,
+            self.lexer.span(),
+            "expected 'return'"
+        );
+
+        self.next();
+
+        let return_value = self.parse_expression()?;
+
+        Ok(Expr::Return(Box::new(Return {
+            value: return_value,
+            span: combine(&span, &self.lexer.span()),
+        })))
+    }
+
+    fn parse_break(&mut self) -> ParseResult<Expr> {
+        let span = self.lexer.span();
+
+        expect!(
+            self.current()?,
+            Token::Break,
+            self.lexer.span(),
+            "expected 'break'"
+        );
+
+        self.next();
+
+        Ok(Expr::Break(Box::new(Break { span })))
+    }
+
+    fn parse_let(&mut self) -> ParseResult<Expr> {
+        let span = self.lexer.span();
+
+        expect!(
+            self.current()?,
+            Token::Let,
+            self.lexer.span(),
+            "expected 'let'"
+        );
+
+        self.next();
+
+        let ident_span = self.lexer.span();
+
+        let Token::Ident(name) = expect!(
+            self.current()?,
+            Token::Ident(..),
+            self.lexer.span(),
+            "expected an identifier"
+        ) else {
+            unreachable!()
+        };
+
+        let name = name.clone();
+
+        self.next();
+
+        let type_ = if !matches!(self.current, Ok(Token::Eq)) {
+            self.parse_type()?
+        } else {
+            Spanned(Type::Unknown, ident_span)
+        };
+
+        expect!(self.current()?, Token::Eq, self.lexer.span(), "expected '='");
+
+        self.next();
+
+        let value = self.parse_expression()?;
+
+        Ok(Expr::DefVar(Box::new(DefVar {
+            name,
+            value,
+            type_,
+            span: combine(&span, &self.lexer.span()),
+        })))
+    }
+
+    fn parse_while(&mut self) -> ParseResult<Expr> {
+        let span = self.lexer.span();
+
+        expect!(
+            self.current()?,
+            Token::While,
+            self.lexer.span(),
+            "expected 'while'"
+        );
+
+        self.next();
+
+        let cond = self.parse_expression()?;
+
+        let body = self.parse_curly_body()?;
+
+        Ok(Expr::While(Box::new(While {
+            condition: cond,
+            body,
+            span: combine(&span, &self.lexer.span()),
+        })))
+    }
+
+    fn parse_when(&mut self) -> ParseResult<Expr> {
+        let span = self.lexer.span();
+
+        expect!(
+            self.current()?,
+            Token::When,
+            self.lexer.span(),
+            "expected 'when'"
+        );
+
+        self.next();
+
+        let cond = self.parse_expression()?;
+
+        let then_body = self.parse_curly_body()?;
+
+        let else_body = if matches!(self.current, Ok(Token::Else)) {
+            self.next();
+            Some(self.parse_curly_body()?)
+        } else {
+            None
+        };
+
+        Ok(Expr::When(Box::new(When {
+            condition: cond,
+            then: then_body,
+            else_: else_body,
+            span: combine(&span, &self.lexer.span()),
+        })))
+    }
+
+    fn parse_if(&mut self) -> ParseResult<Expr> {
+        let span = self.lexer.span();
+
+        expect!(self.current()?, Token::If, self.lexer.span(), "expected 'if'");
+
+        self.next();
+
+        let cond = self.parse_expression()?;
+
+        let then_body = if matches!(self.current, Ok(Token::Then)) {
+            self.next();
+            vec![self.parse_standalone_expression()?]
+        } else {
+            self.parse_curly_body()?
+        };
+
+        expect!(
+            self.current()?,
+            Token::Else,
+            self.lexer.span(),
+            "expected 'else'"
+        );
+
+        self.next();
+
+        let else_body = if matches!(self.current, Ok(Token::LeftBrace)) {
+            self.parse_curly_body()?
+        } else {
+            vec![self.parse_standalone_expression()?]
+        };
+
+        Ok(Expr::If(Box::new(If {
+            condition: cond,
+            then: then_body,
+            else_: else_body,
+            type_: Type::Unknown,
+            span: combine(&span, &self.lexer.span()),
+        })))
+    }
+
+    fn parse_closure(&mut self) -> ParseResult<Expr> {
+        let span = self.lexer.span();
+
+        expect!(
+            self.current()?,
+            Token::BackSlash,
+            self.lexer.span(),
+            "expected '\\'"
+        );
+
+        self.next();
+
+        let params = self.parse_params()?;
+
+        let return_type = self.parse_type()?;
+
+        let body = if matches!(self.current, Ok(Token::Do)) {
+            self.next();
+            vec![self.parse_expression()?]
+        } else {
+            self.parse_curly_body()?
+        };
+
+        Ok(Expr::Closure(Box::new(Closure {
+            parameters: params,
+            return_type,
+            body,
+            type_: Type::Unknown,
+            span: combine(&span, &self.lexer.span()),
+        })))
+    }
+
+    fn parse_list_literal(&mut self) -> ParseResult<Expr> {
         let span = self.lexer.span();
 
         expect!(
@@ -1378,14 +1609,14 @@ impl<'a> Parser<'a> {
 
         self.next();
 
-        Ok(List {
+        Ok(Expr::List(Box::new(List {
             elements,
             span: combine(&span, &self.lexer.span()),
             type_: Type::List(Box::new(Type::Unknown)),
-        })
+        })))
     }
 
-    fn parse_tuple_literal(&mut self) -> ParseResult<Tuple> {
+    fn parse_tuple_literal(&mut self) -> ParseResult<Expr> {
         let span = self.lexer.span();
 
         expect!(self.current()?, Token::LT, self.lexer.span(), "expected '<'");
@@ -1407,10 +1638,10 @@ impl<'a> Parser<'a> {
 
         self.next();
 
-        Ok(Tuple {
+        Ok(Expr::Tuple(Box::new(Tuple {
             values,
             span: combine(&span, &self.lexer.span()),
             type_: Type::Tup(vec![Type::Unknown]),
-        })
+        })))
     }
 }

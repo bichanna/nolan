@@ -11,7 +11,8 @@ func main(args []str) void {
     "Hello world".println();
 
     let names = ["Nobu", "Anna"];
-    names.for_each() in (name) { name.println(); };
+    // names.for_each() in (name) { name.println(); };
+    names.for_each() <. \(name) { name.println(); };
 }
 
 

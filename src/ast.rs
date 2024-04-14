@@ -466,8 +466,8 @@ impl Node for Group {
 #[derive(Debug, Clone, PartialEq)]
 pub struct If {
     pub condition: Expr,
-    pub then: Expr,
-    pub else_: Expr,
+    pub then: Vec<Expr>,
+    pub else_: Vec<Expr>,
     pub type_: Type,
     pub span: Span,
 }
@@ -485,8 +485,8 @@ impl Node for If {
 #[derive(Debug, Clone, PartialEq)]
 pub struct When {
     pub condition: Expr,
-    pub then: Expr,
-    pub else_: Option<Expr>,
+    pub then: Vec<Expr>,
+    pub else_: Option<Vec<Expr>>,
     pub span: Span,
 }
 
@@ -621,7 +621,7 @@ impl Node for Break {
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Return {
-    pub value: Option<Expr>,
+    pub value: Expr,
     pub span: Span,
 }
 
@@ -631,11 +631,7 @@ impl Node for Return {
     }
 
     fn get_type(&self) -> &Type {
-        if let Some(ref value) = self.value {
-            value.get_type()
-        } else {
-            &Type::Void
-        }
+        self.value.get_type()
     }
 }
 
@@ -720,6 +716,21 @@ impl Node for Match {
 }
 
 #[derive(Debug, Clone, PartialEq)]
+pub struct Void {
+    pub span: Span,
+}
+
+impl Node for Void {
+    fn get_span(&self) -> &Span {
+        &self.span
+    }
+
+    fn get_type(&self) -> &Type {
+        &Type::Void
+    }
+}
+
+#[derive(Debug, Clone, PartialEq)]
 pub enum Expr {
     Int(Box<IntLiteral>),
     Float(Box<FloatLiteral>),
@@ -749,6 +760,8 @@ pub enum Expr {
     While(Box<While>),
     Break(Box<Break>),
     Return(Box<Return>),
+    Match(Box<Match>),
+    Void(Box<Void>),
 }
 
 impl Expr {
@@ -812,6 +825,8 @@ impl Node for Expr {
             Self::While(ref node) => node.get_span(),
             Self::Break(ref node) => node.get_span(),
             Self::Return(ref node) => node.get_span(),
+            Self::Match(ref node) => node.get_span(),
+            Self::Void(ref node) => node.get_span(),
         }
     }
 
@@ -845,6 +860,8 @@ impl Node for Expr {
             Self::While(ref node) => node.get_type(),
             Self::Break(ref node) => node.get_type(),
             Self::Return(ref node) => node.get_type(),
+            Self::Match(ref node) => node.get_type(),
+            Self::Void(ref node) => node.get_type(),
         }
     }
 }
