@@ -51,7 +51,7 @@ pure func fizzbuzz(n int) str {
         <0, 0> then "fizz buzz",
         <0, _> then "fizz",
         <_, 0> { "buzz"; },
-        else { n.to_str(); }
+        _ { n.to_str(); }
     }
 }
 

@@ -1303,35 +1303,44 @@ impl<'a> Parser<'a> {
 
         match self.current {
             Ok(Token::True) => {
+                self.next();
                 Ok(Expr::Bool(Box::new(BoolLiteral { value: true, span })))
             }
 
             Ok(Token::False) => {
+                self.next();
                 Ok(Expr::Bool(Box::new(BoolLiteral { value: false, span })))
             }
 
             Ok(Token::Int(value)) => {
+                self.next();
                 Ok(Expr::Int(Box::new(IntLiteral { value, span })))
             }
 
             Ok(Token::Float(value)) => {
+                self.next();
                 Ok(Expr::Float(Box::new(FloatLiteral { value, span })))
             }
 
-            Ok(Token::Str(ref value)) => Ok(Expr::Str(Box::new(StrLiteral {
-                value: value.clone(),
-                span,
-            }))),
+            Ok(Token::Str(ref value)) => {
+                let value = value.clone();
+                self.next();
+                Ok(Expr::Str(Box::new(StrLiteral { value, span })))
+            }
 
             Ok(Token::LeftBrak) => self.parse_list_literal(),
 
             Ok(Token::LT) => self.parse_tuple_literal(),
 
-            Ok(Token::Ident(ref ident)) => Ok(Expr::Ident(Box::new(Ident {
-                name: ident.clone(),
-                span,
-                type_: Type::Unknown,
-            }))),
+            Ok(Token::Ident(ref ident)) => {
+                let ident = ident.clone();
+                self.next();
+                Ok(Expr::Ident(Box::new(Ident {
+                    name: ident,
+                    span,
+                    type_: Type::Unknown,
+                })))
+            }
 
             Ok(Token::BackSlash) => self.parse_closure(),
 
@@ -1352,7 +1361,8 @@ impl<'a> Parser<'a> {
             Ok(Token::Return) => self.parse_return(),
 
             Ok(Token::Void) => {
-                Ok(Expr::Void(Box::new(Void { span: self.lexer.span() })))
+                self.next();
+                Ok(Expr::Void(Box::new(Void { span })))
             }
 
             Ok(Token::Match) => self.parse_match(),
@@ -1366,7 +1376,213 @@ impl<'a> Parser<'a> {
     }
 
     fn parse_match(&mut self) -> ParseResult<Expr> {
+        let span = self.lexer.span();
+
+        expect!(
+            self.current()?,
+            Token::Match,
+            self.lexer.span(),
+            "expected 'match'"
+        );
+
+        self.next();
+
+        let expr = self.parse_expression()?;
+
+        expect!(
+            self.current()?,
+            Token::LeftBrace,
+            self.lexer.span(),
+            "expected '{'"
+        );
+
+        self.next();
+
+        let mut cases = Vec::<MatchCase>::new();
+        while !matches!(self.current, Ok(Token::RightBrace)) {
+            cases.push(self.parse_match_case()?);
+
+            if !matches!(self.current, Ok(Token::Comma)) {
+                break;
+            } else {
+                self.next();
+            }
+        }
+
+        expect!(
+            self.current()?,
+            Token::RightBrace,
+            self.lexer.span(),
+            "expected '}'"
+        );
+
+        self.next();
+
+        Ok(Expr::Match(Box::new(Match {
+            expression: expr,
+            expressions: cases,
+            type_: Type::Unknown,
+            span: combine(&span, &self.lexer.span()),
+        })))
+    }
+
+    fn parse_match_case(&mut self) -> ParseResult<MatchCase> {
+        let span = self.lexer.span();
+
+        let pattern = self.parse_pattern()?;
+
+        let guard = if matches!(self.current, Ok(Token::If)) {
+            self.next();
+            Some(self.parse_expression()?)
+        } else {
+            None
+        };
+
+        let case_body = if matches!(self.current, Ok(Token::Then)) {
+            self.next();
+            vec![self.parse_expression()?]
+        } else {
+            self.parse_curly_body()?
+        };
+
+        Ok(MatchCase {
+            pattern,
+            guard,
+            body: case_body,
+            type_: Type::Unknown,
+            span: combine(&span, &self.lexer.span()),
+        })
+    }
+
+    fn parse_pattern(&mut self) -> ParseResult<Pattern> {
+        let span = self.lexer.span();
+
+        let mut pattern = match self.current()?.clone() {
+            Token::Int(value) => {
+                self.next();
+                Pattern::Int(Box::new(IntLiteral { value, span }))
+            }
+
+            Token::Float(value) => {
+                self.next();
+                Pattern::Float(Box::new(FloatLiteral { value, span }))
+            }
+
+            Token::Str(value) => {
+                self.next();
+                Pattern::Str(Box::new(StrLiteral { value, span }))
+            }
+
+            Token::True => {
+                self.next();
+                Pattern::Bool(Box::new(BoolLiteral { value: true, span }))
+            }
+
+            Token::False => {
+                self.next();
+                Pattern::Bool(Box::new(BoolLiteral { value: false, span }))
+            }
+
+            Token::Underscore => {
+                self.next();
+                Pattern::Wildcard(span)
+            }
+
+            Token::LeftBrak => self.parse_list_pattern()?,
+
+            Token::LT => self.parse_tuple_pattern()?,
+
+            Token::Ident(ident) => self.parse_ident_pattern(ident)?,
+
+            _ => todo!(),
+        };
+
+        let or_span = self.lexer.span();
+
+        let mut or_patterns = Vec::<Pattern>::new();
+        while matches!(self.current, Ok(Token::MatchOr)) {
+            self.next();
+            or_patterns.push(self.parse_pattern()?);
+        }
+
+        if or_patterns.len() > 0 {
+            pattern = Pattern::Or(Box::new(OrPattern {
+                patterns: or_patterns,
+                span: combine(&or_span, &self.lexer.span()),
+            }));
+        }
+
+        Ok(pattern)
+    }
+
+    fn parse_ident_pattern(&mut self, ident: String) -> ParseResult<Pattern> {
         todo!()
+    }
+
+    fn parse_tuple_pattern(&mut self) -> ParseResult<Pattern> {
+        let span = self.lexer.span();
+
+        expect!(self.current()?, Token::LT, self.lexer.span(), "expected '<'");
+
+        self.next();
+
+        let mut values = Vec::<Pattern>::new();
+        while !matches!(self.current, Ok(Token::GT)) {
+            values.push(self.parse_pattern()?);
+
+            if !matches!(self.current, Ok(Token::Comma)) {
+                break;
+            } else {
+                self.next();
+            }
+        }
+
+        expect!(self.current()?, Token::GT, self.lexer.span(), "expected '>'");
+
+        self.next();
+
+        Ok(Pattern::Tuple(Box::new(TuplePattern {
+            values,
+            span: combine(&span, &self.lexer.span()),
+        })))
+    }
+
+    fn parse_list_pattern(&mut self) -> ParseResult<Pattern> {
+        let span = self.lexer.span();
+
+        expect!(
+            self.current()?,
+            Token::LeftBrak,
+            self.lexer.span(),
+            "expected '['"
+        );
+
+        self.next();
+
+        let mut elements = Vec::<Pattern>::new();
+        while !matches!(self.current, Ok(Token::RightBrak)) {
+            elements.push(self.parse_pattern()?);
+
+            if !matches!(self.current, Ok(Token::Comma)) {
+                break;
+            } else {
+                self.next();
+            }
+        }
+
+        expect!(
+            self.current()?,
+            Token::RightBrak,
+            self.lexer.span(),
+            "expected '}'"
+        );
+
+        self.next();
+
+        Ok(Pattern::List(Box::new(ListPattern {
+            elements,
+            span: combine(&span, &self.lexer.span()),
+        })))
     }
 
     fn parse_return(&mut self) -> ParseResult<Expr> {
