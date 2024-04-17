@@ -636,14 +636,20 @@ impl Node for Return {
 }
 
 #[derive(Debug, Clone, PartialEq)]
-pub enum EnumVarPattern {
-    VarAccess(Box<EnumVarAccess>),
-    /// `callee` of `Box<Call>` should be `EnumVarAccess`
-    VarInit(Box<Call>),
+pub struct EnumVarInitPattern {
+    pub access: EnumVarAccess,
+    pub arguments: Vec<Pattern>,
+    pub span: Span,
 }
 
 #[derive(Debug, Clone, PartialEq)]
-pub struct PropertyPattern {
+pub enum EnumVarPattern {
+    VarAccess(Box<EnumVarAccess>),
+    VarInit(Box<EnumVarInitPattern>),
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct FieldPattern {
     pub name: String,
     pub pattern: Pattern,
     pub span: Span,
@@ -651,7 +657,8 @@ pub struct PropertyPattern {
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct StructPattern {
-    pub properties: Vec<PropertyPattern>,
+    pub source: String,
+    pub fields: Vec<FieldPattern>,
     pub span: Span,
 }
 

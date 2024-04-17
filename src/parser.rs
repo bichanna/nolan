@@ -1121,6 +1121,8 @@ impl<'a> Parser<'a> {
 
         let variant = variant.clone();
 
+        self.next();
+
         Ok(Expr::EnumVarAccess(Box::new(EnumVarAccess {
             source: source.clone(),
             variant,
@@ -1494,7 +1496,9 @@ impl<'a> Parser<'a> {
 
             Token::Ident(ident) => self.parse_ident_pattern(ident)?,
 
-            _ => todo!(),
+            _ => {
+                throw_error!(span, "invalid pattern: {:?}", self.current()?);
+            }
         };
 
         let or_span = self.lexer.span();
@@ -1516,7 +1520,146 @@ impl<'a> Parser<'a> {
     }
 
     fn parse_ident_pattern(&mut self, ident: String) -> ParseResult<Pattern> {
-        todo!()
+        let span = self.lexer.span();
+
+        self.next();
+
+        match self.current()? {
+            Token::LeftBrace => self.parse_struct_pattern(span, ident),
+            Token::Colon => self.parse_enum_var_pattern(span, ident),
+            _ => Ok(Pattern::Ident(Box::new(Ident {
+                name: ident,
+                span,
+                type_: Type::Unknown,
+            }))),
+        }
+    }
+
+    fn parse_struct_pattern(
+        &mut self,
+        span: Span,
+        ident: String,
+    ) -> ParseResult<Pattern> {
+        expect!(self.current()?, Token::LeftBrace, span, "expected '{'");
+
+        self.next();
+
+        let mut field_patterns = Vec::<FieldPattern>::new();
+        while !matches!(self.current, Ok(Token::RightBrace)) {
+            field_patterns.push(self.parse_field_pattern()?);
+
+            if !matches!(self.current, Ok(Token::Comma)) {
+                break;
+            } else {
+                self.next();
+            }
+        }
+
+        expect!(
+            self.current()?,
+            Token::RightBrace,
+            self.lexer.span(),
+            "expected '}'"
+        );
+
+        self.next();
+
+        Ok(Pattern::Struct(Box::new(StructPattern {
+            source: ident,
+            fields: field_patterns,
+            span: combine(&span, &self.lexer.span()),
+        })))
+    }
+
+    fn parse_field_pattern(&mut self) -> ParseResult<FieldPattern> {
+        let span = self.lexer.span();
+
+        let Token::Ident(name) = expect!(
+            self.current()?,
+            Token::Ident(..),
+            self.lexer.span(),
+            "expected a field name"
+        ) else {
+            unreachable!()
+        };
+
+        let name = name.clone();
+
+        self.next();
+
+        let pattern = self.parse_pattern()?;
+
+        Ok(FieldPattern {
+            name,
+            pattern,
+            span: combine(&span, &self.lexer.span()),
+        })
+    }
+
+    fn parse_enum_var_pattern(
+        &mut self,
+        span: Span,
+        ident: String,
+    ) -> ParseResult<Pattern> {
+        expect!(self.current()?, Token::Colon, span, "expected ':'");
+
+        self.next();
+
+        let Token::Ident(variant) = expect!(
+            self.current()?,
+            Token::Ident(..),
+            self.lexer.span(),
+            "expected a variant name"
+        ) else {
+            unreachable!()
+        };
+
+        let variant = variant.clone();
+
+        self.next();
+
+        let enum_var_access = EnumVarAccess {
+            source: ident,
+            variant,
+            span: combine(&span, &self.lexer.span()),
+            type_: Type::Unknown,
+        };
+
+        if matches!(self.current, Ok(Token::LeftParen)) {
+            self.next();
+
+            let mut arguments = Vec::<Pattern>::new();
+            while !matches!(self.current, Ok(Token::RightParen)) {
+                arguments.push(self.parse_pattern()?);
+
+                if !matches!(self.current, Ok(Token::Comma)) {
+                    break;
+                } else {
+                    self.next();
+                }
+            }
+
+            expect!(
+                self.current()?,
+                Token::RightParen,
+                self.lexer.span(),
+                "expected ')'"
+            );
+
+            self.next();
+
+            Ok(Pattern::Variant(Box::new(EnumVarPattern::VarInit(Box::new(
+                EnumVarInitPattern {
+                    access: enum_var_access,
+                    arguments,
+                    span: combine(&span, &self.lexer.span()),
+                },
+            )))))
+        } else {
+            Ok(Pattern::Variant(Box::new(EnumVarPattern::VarAccess(Box::new(
+                enum_var_access,
+            )))))
+        }
     }
 
     fn parse_tuple_pattern(&mut self) -> ParseResult<Pattern> {
