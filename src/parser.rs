@@ -1,6 +1,5 @@
-use std::fs;
-
 use logos::{Lexer, Logos};
+use std::fs;
 
 use crate::ast::*;
 use crate::error::{combine, LexError, ParseError, ParseErrorKind, Span};
@@ -42,7 +41,6 @@ macro_rules! expect {
 
 /// A recursive-descent parser that converts tokenized Nolan source code into an AST.
 struct Parser<'a> {
-    source: SourcePath,
     lexer: Lexer<'a, Token>,
     ast: Vec<TopLevelExpr>,
     current: Result<Token, LexError>,
@@ -76,7 +74,7 @@ pub fn parse(source: SourcePath) -> ModParseResult<Module> {
         return Ok(Module::new(module_name, source));
     }
 
-    let (source, exprs) = Parser::new(source, lexer, current.unwrap()).parse();
+    let exprs = Parser::new(lexer, current.unwrap()).parse();
 
     Ok(Module {
         name: module_name.clone(),
@@ -86,14 +84,29 @@ pub fn parse(source: SourcePath) -> ModParseResult<Module> {
     })
 }
 
+#[cfg(test)]
+pub fn test_parse(src: &str) -> ModParseResult<Vec<TopLevelExpr>> {
+    let mut lexer = Token::lexer(src);
+
+    let current = lexer.next();
+
+    if let Some(ref current) = current {
+        if let Err(err) = current {
+            return Err(vec![Spanned(
+                ParseErrorKind::LexErr(err.clone()),
+                lexer.span(),
+            )]);
+        }
+    } else {
+        return Ok(vec![]);
+    }
+
+    Parser::new(lexer, current.unwrap()).parse()
+}
+
 impl<'a> Parser<'a> {
-    fn new(
-        source: SourcePath,
-        lexer: Lexer<'a, Token>,
-        current: Result<Token, LexError>,
-    ) -> Self {
+    fn new(lexer: Lexer<'a, Token>, current: Result<Token, LexError>) -> Self {
         Self {
-            source,
             lexer,
             current,
             errors: Vec::new(),
@@ -102,9 +115,15 @@ impl<'a> Parser<'a> {
         }
     }
 
-    fn parse(mut self) -> (SourcePath, ModParseResult<Vec<TopLevelExpr>>) {
+    fn parse(mut self) -> ModParseResult<Vec<TopLevelExpr>> {
         while !self.done {
+            // println!("current: {:?}", self.current);
+            // println!("done: {}", self.done);
+
             let result = self.parse_top_level_expression();
+
+            // println!("result: {:?}", &result);
+
             if let Err(err) = result {
                 self.errors.push(err);
             } else {
@@ -113,9 +132,9 @@ impl<'a> Parser<'a> {
         }
 
         if self.errors.is_empty() {
-            (self.source, Ok(self.ast))
+            Ok(self.ast)
         } else {
-            (self.source, Err(self.errors))
+            Err(self.errors)
         }
     }
 
@@ -125,6 +144,9 @@ impl<'a> Parser<'a> {
             self.current = token;
         } else {
             self.done = true;
+            self.current = Err(LexError::WithMessage(
+                "unexpected end of source".to_string(),
+            ));
         }
     }
 
@@ -139,6 +161,7 @@ impl<'a> Parser<'a> {
 
     fn parse_top_level_expression(&mut self) -> ParseResult<TopLevelExpr> {
         let current = self.current()?;
+        let span = self.lexer.span();
 
         match current {
             Token::Enum => self.parse_enum_def(),
@@ -146,11 +169,15 @@ impl<'a> Parser<'a> {
             Token::Func | Token::Pure | Token::Rec => self.parse_func(),
             Token::Use => self.parse_use(),
             Token::Export => self.parse_export(),
-            _ => throw_error!(
-                self.lexer.span(),
-                "expected a top-level expression but found '{:?}'",
-                current
-            ),
+            _ => {
+                let current = current.clone();
+                self.next();
+                throw_error!(
+                    span,
+                    "expected a top-level expression but found '{:?}'",
+                    current
+                )
+            }
         }
     }
 
@@ -686,13 +713,22 @@ impl<'a> Parser<'a> {
                 self.current()?,
                 Token::RightBrak,
                 self.lexer.span(),
-                "expected ']' after import"
+                "expected ']' after use",
             );
 
             self.next();
 
             import_symbols = Some(imports);
         }
+
+        expect!(
+            self.current()?,
+            Token::SemiColon,
+            self.lexer.span(),
+            "expected ';'"
+        );
+
+        self.next();
 
         Ok(TopLevelExpr::Use(Box::new(Use {
             module: mod_name,
@@ -2003,4 +2039,162 @@ impl<'a> Parser<'a> {
             type_: Type::Tup(vec![Type::Unknown]),
         })))
     }
+}
+
+#[cfg(test)]
+mod tests {
+    use similar_asserts::assert_eq;
+
+    use super::*;
+
+    #[track_caller]
+    fn one_top(result: ModParseResult<Vec<TopLevelExpr>>) -> TopLevelExpr {
+        if let Ok(mut top_level_exprs) = result {
+            if top_level_exprs.len() == 1 {
+                top_level_exprs.pop().unwrap()
+            } else {
+                panic!(
+                    "parse contains more than one top level expression: {:?}",
+                    &top_level_exprs
+                );
+            }
+        } else {
+            panic!("parse not successful: {:?}", result);
+        }
+    }
+
+    #[track_caller]
+    fn one_error(result: ModParseResult<Vec<TopLevelExpr>>) -> ParseError {
+        if let Err(mut errs) = result {
+            if errs.len() == 1 {
+                errs.pop().unwrap()
+            } else {
+                panic!(
+                    "parse contains more than one parse errors: {:?}",
+                    &errs
+                );
+            }
+        } else {
+            panic!("parse successful: {:?}", result);
+        }
+    }
+
+    #[track_caller]
+    fn multi_errors(
+        result: ModParseResult<Vec<TopLevelExpr>>,
+        num_errs: usize,
+    ) -> Vec<ParseError> {
+        if let Err(errs) = result {
+            if errs.len() == num_errs {
+                errs
+            } else {
+                panic!(
+                    "parse does not contain {} parse errors: {:?}",
+                    num_errs, &errs
+                );
+            }
+        } else {
+            panic!("parse successfull: {:?}", result);
+        }
+    }
+
+    macro_rules! parse_error {
+        ($msg: expr, $range: expr) => {
+            Spanned(ParseErrorKind::ParseErr($msg.to_string()), $range)
+        };
+    }
+
+    macro_rules! unexpected_end {
+        ($range: expr) => {
+            Spanned(
+                ParseErrorKind::LexErr(LexError::WithMessage(
+                    "unexpected end of source".to_string(),
+                )),
+                $range,
+            )
+        };
+    }
+
+    #[test]
+    fn empty() {
+        assert_eq!(test_parse(""), Ok(vec![]));
+        assert_eq!(test_parse("     "), Ok(vec![]));
+        assert_eq!(test_parse("     \n"), Ok(vec![]));
+    }
+
+    #[test]
+    fn use_exprs() {
+        assert_eq!(
+            result: one_top(test_parse("use fmt;")),
+            expected: TopLevelExpr::Use(Box::new(Use {
+                module: "fmt".to_string(),
+                imports: None,
+                span: 0..8
+            }))
+        );
+
+        assert_eq!(
+            result: one_error(test_parse("use")),
+            expected: unexpected_end!(3..3)
+        );
+
+        assert_eq!(
+            result: one_error(test_parse("use fmt")),
+            expected: unexpected_end!(7..7)
+        );
+
+        assert_eq!(
+            result: one_top(test_parse("use fmt [println, print];")),
+            expected: TopLevelExpr::Use(Box::new(Use {
+                module: "fmt".to_string(),
+                imports: Some(vec!["println".to_string(), "print".to_string()]),
+                span: 0..25
+            })),
+        );
+
+        assert_eq!(
+            result: one_top(test_parse("use fmt [];")),
+            expected: TopLevelExpr::Use(Box::new(Use {
+                module: "fmt".to_string(),
+                imports: Some(vec![]),
+                span: 0..11
+            }))
+        );
+
+        assert_eq!(
+            result: one_error(test_parse("use fmt [")),
+            expected: unexpected_end!(9..9)
+        );
+
+        assert_eq!(
+            result: one_error(test_parse("use fmt [println")),
+            expected: unexpected_end!(16..16)
+        );
+
+        assert_eq!(
+            result: multi_errors(test_parse("use fmt [;"), 2),
+            expected: vec![
+                parse_error!("expected an identifier", 9..10),
+                parse_error!("expected a top-level expression but found 'SemiColon'", 9..10)
+            ]
+        );
+    }
+
+    #[test]
+    #[ignore = "export expression is not implemented yet"]
+    fn export_exprs() {}
+
+    #[test]
+    fn enum_without_generics() {}
+
+    #[test]
+    #[ignore = "generics is not implemented yet"]
+    fn enum_with_generics() {}
+
+    #[test]
+    fn struct_without_generics() {}
+
+    #[test]
+    #[ignore = "generics is not implemented yet"]
+    fn struct_with_generics() {}
 }

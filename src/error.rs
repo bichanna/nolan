@@ -75,6 +75,9 @@ pub enum LexError {
     #[error("Invalid float")]
     InvalidFloat,
 
+    #[error("{0}")]
+    WithMessage(String),
+
     #[error("Lexing error")]
     #[default]
     Other,
