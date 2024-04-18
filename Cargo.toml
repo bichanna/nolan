@@ -2,15 +2,18 @@
 name = "nolan"
 version = "0.1.0"
 edition = "2021"
-repository = "https://github.com/bichanna/termess"
+repository = "https://github.com/bichanna/nolan"
 authors = ["Nobuharu Shimazu <nobu.bichanna@gmail.com>"]
 license = "MIT"
 
 [dependencies]
-ariadne = "0.4.0"
-logos = "0.14.0"
-snailquote = "0.3.1"
-thiserror = "1.0.57"
+ariadne = "~0.4.0"
+logos = "~0.14.0"
+snailquote = "~0.3.1"
+thiserror = "~1.0.57"
+
+[dev-dependencies]
+similar-asserts = "~1.5"
 
 # The profile that 'cargo dist' will build with
 [profile.dist]
