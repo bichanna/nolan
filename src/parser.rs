@@ -369,7 +369,7 @@ impl<'a> Parser<'a> {
             self.current()?,
             Token::Ident(..),
             self.lexer.span(),
-            "expected an identifier for an enum name"
+            "expected an enum name"
         ) else {
             unreachable!()
         };
@@ -2185,7 +2185,44 @@ mod tests {
     fn export_exprs() {}
 
     #[test]
-    fn enum_without_generics() {}
+    fn enum_without_generics() {
+        assert_eq!(
+            result: one_top(test_parse("enum int_option { Some(int), None }")),
+            expected: TopLevelExpr::EnumDef(Box::new(EnumDef {
+                name: "int_option".to_string(),
+                variants: vec![
+                    EnumVarDef {
+                        name: "Some".to_string(),
+                        types: vec![Spanned(Type::Int, 23..26)],
+                        span: 18..28
+                    },
+                    EnumVarDef {
+                        name: "None".to_string(),
+                        types: vec![],
+                        span: 29..35
+                    }
+                ],
+                span: 0..35
+            }))
+        );
+
+        assert_eq!(
+            result: multi_errors(test_parse("enum int_option { Some(int) None }"), 3),
+            expected: vec![
+                parse_error!("expected '}' after enum variants", 28..32),
+                parse_error!("expected a top-level expression but found 'Ident(\"None\")'", 28..32),
+                parse_error!("expected a top-level expression but found 'RightBrace'", 33..34),
+            ]
+        );
+
+        assert_eq!(
+            result: multi_errors(test_parse("enum;"), 2),
+            expected: vec![
+                parse_error!("expected an enum name", 4..5),
+                parse_error!("expected a top-level expression but found 'SemiColon'", 4..5)
+            ],
+        );
+    }
 
     #[test]
     #[ignore = "generics is not implemented yet"]
