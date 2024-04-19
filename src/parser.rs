@@ -2229,7 +2229,44 @@ mod tests {
     fn enum_with_generics() {}
 
     #[test]
-    fn struct_without_generics() {}
+    fn struct_without_generics() {
+        assert_eq!(
+            result: one_top(test_parse("struct Person {}")),
+            expected: TopLevelExpr::StructDef(Box::new(StructDef {
+                name: "Person".to_string(),
+                fields: vec![],
+                span: 0..16
+            }))
+        );
+
+        assert_eq!(
+            result: one_top(test_parse("struct Person { name str, age int }")),
+            expected: TopLevelExpr::StructDef(Box::new(StructDef {
+                name: "Person".to_string(),
+                fields: vec![
+                    StructFieldDef {
+                        name: "name".to_string(),
+                        type_: Spanned(Type::Str, 21..24),
+                        span: 16..25
+                    },
+                    StructFieldDef {
+                        name: "age".to_string(),
+                        type_: Spanned(Type::Int, 30..33),
+                        span: 26..35
+                    }
+                ],
+                span: 0..35
+            }))
+        );
+
+        assert_eq!(
+            result: multi_errors(test_parse("struct Person { name int;"), 2),
+            expected: vec![
+                parse_error!("expected '}' after struct fields", 24..25),
+                parse_error!("expected a top-level expression but found 'SemiColon'", 24..25)
+            ],
+        );
+    }
 
     #[test]
     #[ignore = "generics is not implemented yet"]
