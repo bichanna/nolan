@@ -117,12 +117,12 @@ impl<'a> Parser<'a> {
 
     fn parse(mut self) -> ModParseResult<Vec<TopLevelExpr>> {
         while !self.done {
-            // println!("current: {:?}", self.current);
-            // println!("done: {}", self.done);
+            // dbg!(&self.current);
+            // dbg!(&self.done);
 
             let result = self.parse_top_level_expression();
 
-            // println!("result: {:?}", &result);
+            // dbg!(&result);
 
             if let Err(err) = result {
                 self.errors.push(err);
