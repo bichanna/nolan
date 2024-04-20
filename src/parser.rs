@@ -1053,9 +1053,9 @@ impl<'a> Parser<'a> {
 
         expect!(
             self.current()?,
-            Token::SingleQuote,
+            Token::DColon,
             self.lexer.span(),
-            "expected \"'\""
+            "expected '::'"
         );
 
         self.next();
@@ -1071,11 +1071,13 @@ impl<'a> Parser<'a> {
 
         let constant = constant.clone();
 
+        self.next();
+
         Ok(Expr::ModAccess(Box::new(ModAccess {
             module: module.clone(),
             constant,
             span: combine(&span, &self.lexer.span()),
-            type_: Type::Named(module),
+            type_: Type::Unknown,
         })))
     }
 
@@ -2338,6 +2340,25 @@ mod tests {
         );
 
         assert_eq!(
+            result: one_top(test_parse("func main() void do void;")),
+            expected: TopLevelExpr::Func(Box::new(Func {
+                pure: false,
+                rec: false,
+                name: "main".to_string(),
+                closure: Closure {
+                    parameters: vec![],
+                    return_type: Spanned(Type::Void, 12..16),
+                    body: vec![
+                        Expr::Void(Box::new(Void { span: 20..24 }))
+                    ],
+                    type_: Type::Unknown,
+                    span: 0..25
+                },
+                span: 0..25
+            }))
+        );
+
+        assert_eq!(
             result: one_error(test_parse("func main()")),
             expected: unexpected_end!(11..11)
         );
@@ -2490,6 +2511,73 @@ mod tests {
                     ],
                     span: 37..40,
                     type_: Type::Unknown
+                }))
+            ]
+        );
+    }
+
+    #[test]
+    fn mod_access() {
+        assert_eq!(
+            result: exprs(test_parse("func main() void { fmt::println(\"Hello World\"); }")),
+            expected: vec![
+                Expr::Call(Box::new(Call {
+                    callee: Expr::ModAccess(Box::new(ModAccess {
+                        module: "fmt".to_string(),
+                        constant: "println".to_string(),
+                        span: 22..32,
+                        type_: Type::Unknown
+                    })),
+                    arguments: vec![
+                        Expr::Str(Box::new(StrLiteral { value: "Hello World".to_string(), span: 32..45 }))
+                    ],
+                    type_: Type::Unknown,
+                    span: 31..47
+                }))
+            ]
+        );
+    }
+
+    #[test]
+    fn closure() {
+        assert_eq!(
+            result: exprs(test_parse("func main() void { \\(name str) str do name; }")),
+            expected: vec![
+                Expr::Closure(Box::new(Closure {
+                    parameters: vec![
+                        FuncParam {
+                            name: "name".to_string(),
+                            type_: Spanned(Type::Str, 26..29),
+                            span: 21..30
+                        }
+                    ],
+                    return_type: Spanned(Type::Str, 31..34),
+                    body: vec![
+                        Expr::Ident(Box::new(Ident { name: "name".to_string(), span: 38..42, type_: Type::Unknown }))
+                    ],
+                    type_: Type::Unknown,
+                    span: 19..43
+                }))
+            ]
+        );
+
+        assert_eq!(
+            result: exprs(test_parse("func main() void { \\(name str) str { name; }; }")),
+            expected: vec![
+                Expr::Closure(Box::new(Closure {
+                    parameters: vec![
+                        FuncParam {
+                            name: "name".to_string(),
+                            type_: Spanned(Type::Str, 26..29),
+                            span: 21..30
+                        }
+                    ],
+                    return_type: Spanned(Type::Str, 31..34),
+                    body: vec![
+                        Expr::Ident(Box::new(Ident { name: "name".to_string(), span: 37..41, type_: Type::Unknown }))
+                    ],
+                    type_: Type::Unknown,
+                    span: 19..45
                 }))
             ]
         );
