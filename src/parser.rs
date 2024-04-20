@@ -2429,24 +2429,54 @@ mod tests {
                 "func main() void { 123; 1.23; \"Bello\"; true; [1, 2, 3]; #(\"bello\", 2.2, 3); some_var; }"
             )),
             expected: vec![
-                Expr::Int(Box::new(IntLiteral { value: 123, span: 19..22 })),
-                Expr::Float(Box::new(FloatLiteral { value: 1.23, span: 24..28 })),
-                Expr::Str(Box::new(StrLiteral { value: "Bello".to_string(), span: 30..37 })),
-                Expr::Bool(Box::new(BoolLiteral { value: true, span: 39..43 })),
+                Expr::Int(Box::new(IntLiteral {
+                    value: 123,
+                    span: 19..22
+                })),
+                Expr::Float(Box::new(FloatLiteral {
+                    value: 1.23,
+                    span: 24..28
+                })),
+                Expr::Str(Box::new(StrLiteral {
+                    value: "Bello".to_string(),
+                    span: 30..37
+                })),
+                Expr::Bool(Box::new(BoolLiteral {
+                    value: true,
+                    span: 39..43
+                })),
                 Expr::List(Box::new(List {
                     elements: vec![
-                        Expr::Int(Box::new(IntLiteral { value: 1, span: 46..47 })),
-                        Expr::Int(Box::new(IntLiteral { value: 2, span: 49..50 })),
-                        Expr::Int(Box::new(IntLiteral { value: 3, span: 52..53 })),
+                        Expr::Int(Box::new(IntLiteral {
+                            value: 1,
+                            span: 46..47
+                        })),
+                        Expr::Int(Box::new(IntLiteral {
+                            value: 2,
+                            span: 49..50
+                        })),
+                        Expr::Int(Box::new(IntLiteral {
+                            value: 3,
+                            span: 52..53
+                        })),
                     ],
                     span: 45..55,
                     type_: Type::List(Box::new(Type::Unknown)),
                 })),
                 Expr::Tuple(Box::new(Tuple {
                     values: vec![
-                        Expr::Str(Box::new(StrLiteral { value: "bello".to_string(), span: 58..65 })),
-                        Expr::Float(Box::new(FloatLiteral { value: 2.2, span: 67..70 })),
-                        Expr::Int(Box::new(IntLiteral { value: 3, span: 72..73 })),
+                        Expr::Str(Box::new(StrLiteral {
+                            value: "bello".to_string(),
+                            span: 58..65
+                        })),
+                        Expr::Float(Box::new(FloatLiteral {
+                            value: 2.2,
+                            span: 67..70
+                        })),
+                        Expr::Int(Box::new(IntLiteral {
+                            value: 3,
+                            span: 72..73
+                        })),
                     ],
                     span: 56..75,
                     type_: Type::Tup(vec![Type::Unknown]),
@@ -2474,7 +2504,10 @@ mod tests {
                         type_: Type::Named("list".to_string())
                     })),
                     arguments: vec![
-                        Expr::Int(Box::new(IntLiteral { value: 123, span: 29..32 })),
+                        Expr::Int(Box::new(IntLiteral {
+                            value: 123,
+                            span: 29..32
+                        })),
                         Expr::Call(Box::new(Call {
                             callee: Expr::EnumVarAccess(Box::new(EnumVarAccess {
                                 source: "list".to_string(),
@@ -2483,7 +2516,10 @@ mod tests {
                                 type_: Type::Named("list".to_string())
                             })),
                             arguments: vec![
-                                Expr::Int(Box::new(IntLiteral { value: 321, span: 47..50 })),
+                                Expr::Int(Box::new(IntLiteral {
+                                    value: 321,
+                                    span: 47..50
+                                })),
                                 Expr::EnumVarAccess(Box::new(EnumVarAccess {
                                     source: "list".to_string(),
                                     variant: "Nil".to_string(),
@@ -2503,12 +2539,18 @@ mod tests {
                     arguments: vec![
                         StructInitArg {
                             name: "age".to_string(),
-                            value: Expr::Int(Box::new(IntLiteral { value: 18, span: 78..80 })),
+                            value: Expr::Int(Box::new(IntLiteral {
+                                value: 18,
+                                span: 78..80
+                            })),
                             span: 74..81
                         },
                         StructInitArg {
                             name: "name".to_string(),
-                            value: Expr::Str(Box::new(StrLiteral { value: "Nobu".to_string(), span: 87..93 })),
+                            value: Expr::Str(Box::new(StrLiteral {
+                                value: "Nobu".to_string(),
+                                span: 87..93
+                            })),
                             span: 82..94
                         },
                         StructInitArg {
@@ -2567,7 +2609,10 @@ mod tests {
                         type_: Type::Unknown
                     })),
                     arguments: vec![
-                        Expr::Str(Box::new(StrLiteral { value: "Hello World".to_string(), span: 32..45 }))
+                        Expr::Str(Box::new(StrLiteral {
+                            value: "Hello World".to_string(),
+                            span: 32..45
+                        }))
                     ],
                     type_: Type::Unknown,
                     span: 31..47
@@ -2591,7 +2636,11 @@ mod tests {
                     ],
                     return_type: Spanned(Type::Str, 31..34),
                     body: vec![
-                        Expr::Ident(Box::new(Ident { name: "name".to_string(), span: 38..42, type_: Type::Unknown }))
+                        Expr::Ident(Box::new(Ident {
+                            name: "name".to_string(),
+                            span: 38..42,
+                            type_: Type::Unknown
+                        }))
                     ],
                     type_: Type::Unknown,
                     span: 19..43
@@ -2612,7 +2661,11 @@ mod tests {
                     ],
                     return_type: Spanned(Type::Str, 31..34),
                     body: vec![
-                        Expr::Ident(Box::new(Ident { name: "name".to_string(), span: 37..41, type_: Type::Unknown }))
+                        Expr::Ident(Box::new(Ident {
+                            name: "name".to_string(),
+                            span: 37..41,
+                            type_: Type::Unknown
+                        }))
                     ],
                     type_: Type::Unknown,
                     span: 19..45
@@ -2627,25 +2680,46 @@ mod tests {
             result: exprs(test_parse("func main() void { 1 + (1 - 1) / 1; }")),
             expected: vec![
                 Expr::Binary(Box::new(Binary {
-                    lhs: Expr::Int(Box::new(IntLiteral { value: 1, span: 19..20 })),
+                    lhs: Expr::Int(Box::new(IntLiteral {
+                        value: 1,
+                        span: 19..20
+                    })),
                     rhs: Expr::Binary(Box::new(Binary {
                         lhs: Expr::Group(Box::new(Group {
                             expression: Expr::Binary(Box::new(Binary {
-                                lhs: Expr::Int(Box::new(IntLiteral { value: 1, span: 24..25 })),
-                                rhs: Expr::Int(Box::new(IntLiteral { value: 1, span: 28..29 })),
-                                operator: BinaryOp { kind: BinaryOpKind::Sub, span: 26..27 },
+                                lhs: Expr::Int(Box::new(IntLiteral {
+                                    value: 1,
+                                    span: 24..25
+                                })),
+                                rhs: Expr::Int(Box::new(IntLiteral {
+                                    value: 1,
+                                    span: 28..29
+                                })),
+                                operator: BinaryOp {
+                                    kind: BinaryOpKind::Sub,
+                                    span: 26..27
+                                },
                                 span: 24..29,
                                 type_: Type::Unknown
                             })),
                             type_: Type::Unknown,
                             span: 23..32
                         })),
-                        rhs: Expr::Int(Box::new(IntLiteral { value: 1, span: 33..34 })),
-                        operator: BinaryOp { kind: BinaryOpKind::Div, span: 31..32 },
+                        rhs: Expr::Int(Box::new(IntLiteral {
+                            value: 1,
+                            span: 33..34
+                        })),
+                        operator: BinaryOp {
+                            kind: BinaryOpKind::Div,
+                            span: 31..32
+                        },
                         span: 23..34,
                         type_: Type::Unknown
                     })),
-                    operator: BinaryOp { kind: BinaryOpKind::Add, span: 21..22 },
+                    operator: BinaryOp {
+                        kind: BinaryOpKind::Add,
+                        span: 21..22
+                    },
                     span: 19..34,
                     type_: Type::Unknown
                 }))
@@ -2656,18 +2730,30 @@ mod tests {
             result: exprs(test_parse("func main() void { not false; -(-23); }")),
             expected: vec![
                 Expr::Unary(Box::new(Unary {
-                    rhs: Expr::Bool(Box::new(BoolLiteral { value: false, span: 23..28 })),
-                    operator: UnaryOp { kind: UnaryOpKind::NegBool, span: 19..22 },
+                    rhs: Expr::Bool(Box::new(BoolLiteral {
+                        value: false,
+                        span: 23..28
+                    })),
+                    operator: UnaryOp {
+                        kind: UnaryOpKind::NegBool, span:
+                        19..22
+                    },
                     span: 19..28,
                     type_: Type::Bool
                 })),
                 Expr::Unary(Box::new(Unary {
                     rhs: Expr::Group(Box::new(Group {
-                        expression: Expr::Int(Box::new(IntLiteral { value: -23, span: 32..35 })),
+                        expression: Expr::Int(Box::new(IntLiteral {
+                            value: -23,
+                            span: 32..35
+                        })),
                         type_: Type::Int,
                         span: 31..37,
                     })),
-                    operator: UnaryOp { kind: UnaryOpKind::NegNum, span: 30..31 },
+                    operator: UnaryOp {
+                        kind: UnaryOpKind::NegNum,
+                        span: 30..31
+                    },
                     span: 30..37,
                     type_: Type::Unknown
                 }))
@@ -2682,19 +2768,33 @@ mod tests {
             expected: vec![
                 Expr::DefVar(Box::new(DefVar {
                     name: "a".to_string(),
-                    value: Expr::Int(Box::new(IntLiteral { value: 0, span: 31..32 })),
+                    value: Expr::Int(Box::new(IntLiteral {
+                        value: 0,
+                        span: 31..32
+                    })),
                     span: 19..33,
                     type_: Spanned(Type::Int, 25..28)
                 })),
                 Expr::AssignVar(Box::new(AssignVar {
-                    left: Expr::Ident(Box::new(Ident { name: "a".to_string(), span: 34..35, type_: Type::Unknown })),
-                    value: Expr::Int(Box::new(IntLiteral { value: 123, span: 38..41 })),
+                    left: Expr::Ident(Box::new(Ident {
+                        name: "a".to_string(),
+                        span: 34..35,
+                        type_: Type::Unknown
+                    })),
+                    value: Expr::Int(Box::new(IntLiteral {
+                        value: 123,
+                        span: 38..41
+                    })),
                     span: 34..42,
                     type_: Type::Unknown
                 })),
                 Expr::DefVar(Box::new(DefVar {
                     name: "b".to_string(),
-                    value: Expr::Ident(Box::new(Ident { name: "a".to_string(), span: 51..52, type_: Type::Unknown })),
+                    value: Expr::Ident(Box::new(Ident {
+                        name: "a".to_string(),
+                        span: 51..52,
+                        type_: Type::Unknown
+                    })),
                     span: 43..53,
                     type_: Spanned(Type::Unknown, 47..48)
                 }))
@@ -2708,24 +2808,43 @@ mod tests {
             result: exprs(test_parse("func main() void { list[0]; #(1, 2)[idx + 1]; }")),
             expected: vec![
                 Expr::Index(Box::new(Index {
-                    source: Expr::Ident(Box::new(Ident { name: "list".to_string(), span: 19..23, type_: Type::Unknown })),
-                    index: Expr::Int(Box::new(IntLiteral { value: 0, span: 24..25 })),
+                    source: Expr::Ident(Box::new(Ident {
+                        name: "list".to_string(),
+                        span: 19..23,
+                        type_: Type::Unknown
+                    })),
+                    index: Expr::Int(Box::new(IntLiteral {
+                        value: 0, span: 24..25
+                    })),
                     span: 23..27,
                     type_: Type::Unknown
                 })),
                 Expr::Index(Box::new(Index {
                     source: Expr::Tuple(Box::new(Tuple {
                         values: vec![
-                            Expr::Int(Box::new(IntLiteral { value: 1, span: 30..31 })),
-                            Expr::Int(Box::new(IntLiteral { value: 2, span: 33..34 }))
+                            Expr::Int(Box::new(IntLiteral {
+                                value: 1, span: 30..31
+                            })),
+                            Expr::Int(Box::new(IntLiteral {
+                                value: 2, span: 33..34
+                            }))
                         ],
                         span: 28..36,
                         type_: Type::Tup(vec![Type::Unknown])
                     })),
                     index: Expr::Binary(Box::new(Binary {
-                        lhs: Expr::Ident(Box::new(Ident { name: "idx".to_string(), span: 36..39, type_: Type::Unknown })),
-                        rhs: Expr::Int(Box::new(IntLiteral { value: 1, span: 42..43 })),
-                        operator: BinaryOp { kind: BinaryOpKind::Add, span: 40..41 },
+                        lhs: Expr::Ident(Box::new(Ident {
+                            name: "idx".to_string(),
+                            span: 36..39, type_: Type::Unknown
+                        })),
+                        rhs: Expr::Int(Box::new(IntLiteral {
+                            value: 1,
+                            span: 42..43
+                        })),
+                        operator: BinaryOp {
+                            kind: BinaryOpKind::Add,
+                            span: 40..41
+                        },
                         span: 36..43,
                         type_: Type::Unknown,
                     })),
