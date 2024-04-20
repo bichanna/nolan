@@ -569,12 +569,6 @@ impl<'a> Parser<'a> {
 
         while !matches!(self.current, Ok(Token::RightBrace)) {
             body.push(self.parse_standalone_expression()?);
-
-            if !matches!(self.current, Ok(Token::Comma)) {
-                break;
-            } else {
-                self.next();
-            }
         }
 
         expect!(
@@ -1368,7 +1362,7 @@ impl<'a> Parser<'a> {
 
             Ok(Token::LeftBrak) => self.parse_list_literal(),
 
-            Ok(Token::LT) => self.parse_tuple_literal(),
+            Ok(Token::Hash) => self.parse_tuple_literal(),
 
             Ok(Token::Ident(ref ident)) => {
                 let ident = ident.clone();
@@ -2014,12 +2008,26 @@ impl<'a> Parser<'a> {
     fn parse_tuple_literal(&mut self) -> ParseResult<Expr> {
         let span = self.lexer.span();
 
-        expect!(self.current()?, Token::LT, self.lexer.span(), "expected '<'");
+        expect!(
+            self.current()?,
+            Token::Hash,
+            self.lexer.span(),
+            "expected '#'"
+        );
+
+        self.next();
+
+        expect!(
+            self.current()?,
+            Token::LeftParen,
+            self.lexer.span(),
+            "expected '('"
+        );
 
         self.next();
 
         let mut values = Vec::<Expr>::new();
-        while !matches!(self.current, Ok(Token::GT)) {
+        while !matches!(self.current, Ok(Token::RightParen)) {
             values.push(self.parse_expression()?);
 
             if !matches!(self.current, Ok(Token::Comma)) {
@@ -2029,7 +2037,12 @@ impl<'a> Parser<'a> {
             }
         }
 
-        expect!(self.current()?, Token::GT, self.lexer.span(), "expected '>'");
+        expect!(
+            self.current()?,
+            Token::RightParen,
+            self.lexer.span(),
+            "expected ')'"
+        );
 
         self.next();
 
@@ -2052,6 +2065,27 @@ mod tests {
         if let Ok(mut top_level_exprs) = result {
             if top_level_exprs.len() == 1 {
                 top_level_exprs.pop().unwrap()
+            } else {
+                panic!(
+                    "parse contains more than one top level expression: {:?}",
+                    &top_level_exprs
+                );
+            }
+        } else {
+            panic!("parse not successful: {:?}", result);
+        }
+    }
+
+    #[track_caller]
+    fn exprs(result: ModParseResult<Vec<TopLevelExpr>>) -> Vec<Expr> {
+        if let Ok(mut top_level_exprs) = result {
+            if top_level_exprs.len() == 1 {
+                if let TopLevelExpr::Func(func) = top_level_exprs.pop().unwrap()
+                {
+                    return func.closure.body;
+                } else {
+                    panic!("expected a function");
+                }
             } else {
                 panic!(
                     "parse contains more than one top level expression: {:?}",
@@ -2103,7 +2137,6 @@ mod tests {
             Spanned(ParseErrorKind::ParseErr($msg.to_string()), $range)
         };
     }
-
     macro_rules! unexpected_end {
         ($range: expr) => {
             Spanned(
@@ -2327,4 +2360,37 @@ mod tests {
     #[test]
     #[ignore = "generics is not implemented yet"]
     fn func_with_generics() {}
+
+    #[test]
+    fn literals() {
+        assert_eq!(
+            result: exprs(test_parse(
+                "func main() void { 123; 1.23; \"Bello\"; true; [1, 2, 3]; #(\"bello\", 2.2, 3); }"
+            )),
+            expected: vec![
+                Expr::Int(Box::new(IntLiteral { value: 123, span: 19..22 })),
+                Expr::Float(Box::new(FloatLiteral { value: 1.23, span: 24..28 })),
+                Expr::Str(Box::new(StrLiteral { value: "Bello".to_string(), span: 30..37 })),
+                Expr::Bool(Box::new(BoolLiteral { value: true, span: 39..43 })),
+                Expr::List(Box::new(List {
+                    elements: vec![
+                        Expr::Int(Box::new(IntLiteral { value: 1, span: 46..47 })),
+                        Expr::Int(Box::new(IntLiteral { value: 2, span: 49..50 })),
+                        Expr::Int(Box::new(IntLiteral { value: 3, span: 52..53 })),
+                    ],
+                    span: 45..55,
+                    type_: Type::List(Box::new(Type::Unknown)),
+                })),
+                Expr::Tuple(Box::new(Tuple {
+                    values: vec![
+                        Expr::Str(Box::new(StrLiteral { value: "bello".to_string(), span: 58..65 })),
+                        Expr::Float(Box::new(FloatLiteral { value: 2.2, span: 67..70 })),
+                        Expr::Int(Box::new(IntLiteral { value: 3, span: 72..73 })),
+                    ],
+                    span: 56..75,
+                    type_: Type::Tup(vec![Type::Unknown]),
+                }))
+            ]
+        );
+    }
 }

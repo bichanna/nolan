@@ -47,10 +47,10 @@ let nobu Person = Person { age 18, name "Nobu" };
 
 /// Functions
 pure func fizzbuzz(n int) str {
-    match <n % 3, n % 5> {
-        <0, 0> then "fizz buzz",
-        <0, _> then "fizz",
-        <_, 0> { "buzz"; },
+    match #(n % 3, n % 5) {
+        #(0, 0) then "fizz buzz",
+        #(0, _) then "fizz",
+        #(_, 0) { "buzz"; },
         _ { n.to_str(); }
     }
 }
