@@ -2266,9 +2266,65 @@ mod tests {
                 parse_error!("expected a top-level expression but found 'SemiColon'", 24..25)
             ],
         );
+
+        assert_eq!(
+            result: one_error(test_parse("struct Person")),
+            expected: unexpected_end!(13..13),
+        );
     }
 
     #[test]
     #[ignore = "generics is not implemented yet"]
     fn struct_with_generics() {}
+
+    #[test]
+    fn func_without_generics() {
+        assert_eq!(
+            result: one_top(test_parse("func main(args []str) void {}")),
+            expected: TopLevelExpr::Func(Box::new(Func {
+                pure: false,
+                rec: false,
+                name: "main".to_string(),
+                closure: Closure {
+                    parameters: vec![
+                        FuncParam {
+                            name: "args".to_string(),
+                            type_: Spanned(Type::List(Box::new(Type::Str)), 15..20),
+                            span: 10..21
+                        }
+                    ],
+                    return_type: Spanned(Type::Void, 22..26),
+                    body: vec![],
+                    type_: Type::Unknown,
+                    span: 0..29,
+                },
+                span: 0..29
+            })),
+        );
+
+        assert_eq!(
+            result: one_error(test_parse("func main()")),
+            expected: unexpected_end!(11..11)
+        );
+
+        assert_eq!(
+            result: multi_errors(test_parse("func main() void }"), 2),
+            expected: vec![
+                parse_error!("expected '{' for the start of a function body", 17..18),
+                parse_error!("expected a top-level expression but found 'RightBrace'", 17..18)
+            ]
+        );
+
+        assert_eq!(
+            result: multi_errors(test_parse("func main void"), 2),
+            expected: vec![
+                parse_error!("expected '('", 10..14),
+                parse_error!("expected a top-level expression but found 'Void'", 10..14)
+            ]
+        );
+    }
+
+    #[test]
+    #[ignore = "generics is not implemented yet"]
+    fn func_with_generics() {}
 }
