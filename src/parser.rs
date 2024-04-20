@@ -945,10 +945,15 @@ impl<'a> Parser<'a> {
             let span = self.lexer.span();
             let unary_op_kind = UnaryOpKind::from(self.current()?);
             let unary_op = UnaryOp { kind: unary_op_kind, span };
+            let type_ = if let UnaryOpKind::NegBool = unary_op_kind {
+                Some(Type::Bool)
+            } else {
+                None
+            };
 
             self.next();
 
-            Expr::unary(unary_op, self.parse_unary()?, None)
+            Expr::unary(unary_op, self.parse_unary()?, type_)
         } else {
             self.parse_call(None)?
         };
@@ -1380,9 +1385,7 @@ impl<'a> Parser<'a> {
 
             Ok(Token::BackSlash) => self.parse_closure(),
 
-            Err(ref err) => {
-                Err(Spanned(ParseErrorKind::LexErr(err.clone()), span))
-            }
+            Ok(Token::LeftParen) => self.parse_group(),
 
             Ok(Token::If) => self.parse_if(),
 
@@ -1402,6 +1405,10 @@ impl<'a> Parser<'a> {
             }
 
             Ok(Token::Match) => self.parse_match(),
+
+            Err(ref err) => {
+                Err(Spanned(ParseErrorKind::LexErr(err.clone()), span))
+            }
 
             _ => {
                 let current = self.current()?.clone();
@@ -1934,6 +1941,37 @@ impl<'a> Parser<'a> {
             then: then_body,
             else_: else_body,
             type_: Type::Unknown,
+            span: combine(&span, &self.lexer.span()),
+        })))
+    }
+
+    fn parse_group(&mut self) -> ParseResult<Expr> {
+        let span = self.lexer.span();
+
+        expect!(
+            self.current()?,
+            Token::LeftParen,
+            self.lexer.span(),
+            "expected '('"
+        );
+
+        self.next();
+
+        let expr = self.parse_expression()?;
+        let type_ = expr.get_type().clone();
+
+        expect!(
+            self.current()?,
+            Token::RightParen,
+            self.lexer.span(),
+            "expected ')'"
+        );
+
+        self.next();
+
+        Ok(Expr::Group(Box::new(Group {
+            expression: expr,
+            type_,
             span: combine(&span, &self.lexer.span()),
         })))
     }
@@ -2578,6 +2616,60 @@ mod tests {
                     ],
                     type_: Type::Unknown,
                     span: 19..45
+                }))
+            ]
+        );
+    }
+
+    #[test]
+    fn binary_unary() {
+        assert_eq!(
+            result: exprs(test_parse("func main() void { 1 + (1 - 1) / 1; }")),
+            expected: vec![
+                Expr::Binary(Box::new(Binary {
+                    lhs: Expr::Int(Box::new(IntLiteral { value: 1, span: 19..20 })),
+                    rhs: Expr::Binary(Box::new(Binary {
+                        lhs: Expr::Group(Box::new(Group {
+                            expression: Expr::Binary(Box::new(Binary {
+                                lhs: Expr::Int(Box::new(IntLiteral { value: 1, span: 24..25 })),
+                                rhs: Expr::Int(Box::new(IntLiteral { value: 1, span: 28..29 })),
+                                operator: BinaryOp { kind: BinaryOpKind::Sub, span: 26..27 },
+                                span: 24..29,
+                                type_: Type::Unknown
+                            })),
+                            type_: Type::Unknown,
+                            span: 23..32
+                        })),
+                        rhs: Expr::Int(Box::new(IntLiteral { value: 1, span: 33..34 })),
+                        operator: BinaryOp { kind: BinaryOpKind::Div, span: 31..32 },
+                        span: 23..34,
+                        type_: Type::Unknown
+                    })),
+                    operator: BinaryOp { kind: BinaryOpKind::Add, span: 21..22 },
+                    span: 19..34,
+                    type_: Type::Unknown
+                }))
+            ],
+        );
+
+        assert_eq!(
+            result: exprs(test_parse("func main() void { not false; -(-23); }")),
+            expected: vec![
+                Expr::Unary(Box::new(Unary {
+                    rhs: Expr::Bool(Box::new(BoolLiteral { value: false, span: 23..28 })),
+                    operator: UnaryOp { kind: UnaryOpKind::NegBool, span: 19..22 },
+                    span: 19..28,
+                    type_: Type::Bool
+                })),
+                Expr::Unary(Box::new(Unary {
+                    rhs: Expr::Group(Box::new(Group {
+                        expression: Expr::Int(Box::new(IntLiteral { value: -23, span: 32..35 })),
+                        type_: Type::Int,
+                        span: 31..37,
+                    })),
+                    operator: UnaryOp { kind: UnaryOpKind::NegNum, span: 30..31 },
+                    span: 30..37,
+                    type_: Type::Unknown
                 }))
             ]
         );
