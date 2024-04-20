@@ -2674,4 +2674,65 @@ mod tests {
             ]
         );
     }
+
+    #[test]
+    fn variables() {
+        assert_eq!(
+            result: exprs(test_parse("func main() void { let a int = 0; a = 123; let b = a; }")),
+            expected: vec![
+                Expr::DefVar(Box::new(DefVar {
+                    name: "a".to_string(),
+                    value: Expr::Int(Box::new(IntLiteral { value: 0, span: 31..32 })),
+                    span: 19..33,
+                    type_: Spanned(Type::Int, 25..28)
+                })),
+                Expr::AssignVar(Box::new(AssignVar {
+                    left: Expr::Ident(Box::new(Ident { name: "a".to_string(), span: 34..35, type_: Type::Unknown })),
+                    value: Expr::Int(Box::new(IntLiteral { value: 123, span: 38..41 })),
+                    span: 34..42,
+                    type_: Type::Unknown
+                })),
+                Expr::DefVar(Box::new(DefVar {
+                    name: "b".to_string(),
+                    value: Expr::Ident(Box::new(Ident { name: "a".to_string(), span: 51..52, type_: Type::Unknown })),
+                    span: 43..53,
+                    type_: Spanned(Type::Unknown, 47..48)
+                }))
+            ]
+        );
+    }
+
+    #[test]
+    fn indexing() {
+        assert_eq!(
+            result: exprs(test_parse("func main() void { list[0]; #(1, 2)[idx + 1]; }")),
+            expected: vec![
+                Expr::Index(Box::new(Index {
+                    source: Expr::Ident(Box::new(Ident { name: "list".to_string(), span: 19..23, type_: Type::Unknown })),
+                    index: Expr::Int(Box::new(IntLiteral { value: 0, span: 24..25 })),
+                    span: 23..27,
+                    type_: Type::Unknown
+                })),
+                Expr::Index(Box::new(Index {
+                    source: Expr::Tuple(Box::new(Tuple {
+                        values: vec![
+                            Expr::Int(Box::new(IntLiteral { value: 1, span: 30..31 })),
+                            Expr::Int(Box::new(IntLiteral { value: 2, span: 33..34 }))
+                        ],
+                        span: 28..36,
+                        type_: Type::Tup(vec![Type::Unknown])
+                    })),
+                    index: Expr::Binary(Box::new(Binary {
+                        lhs: Expr::Ident(Box::new(Ident { name: "idx".to_string(), span: 36..39, type_: Type::Unknown })),
+                        rhs: Expr::Int(Box::new(IntLiteral { value: 1, span: 42..43 })),
+                        operator: BinaryOp { kind: BinaryOpKind::Add, span: 40..41 },
+                        span: 36..43,
+                        type_: Type::Unknown,
+                    })),
+                    span: 35..45,
+                    type_: Type::Unknown
+                }))
+            ]
+        );
+    }
 }
