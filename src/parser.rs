@@ -1111,11 +1111,13 @@ impl<'a> Parser<'a> {
 
         let field = field.clone();
 
+        self.next();
+
         Ok(Expr::StructFieldAccess(Box::new(StructFieldAccess {
             source: source.clone(),
             field,
             span: combine(&span, &self.lexer.span()),
-            type_: Type::Named(source),
+            type_: Type::Unknown,
         })))
     }
 
@@ -2365,7 +2367,7 @@ mod tests {
     fn literals() {
         assert_eq!(
             result: exprs(test_parse(
-                "func main() void { 123; 1.23; \"Bello\"; true; [1, 2, 3]; #(\"bello\", 2.2, 3); }"
+                "func main() void { 123; 1.23; \"Bello\"; true; [1, 2, 3]; #(\"bello\", 2.2, 3); some_var; }"
             )),
             expected: vec![
                 Expr::Int(Box::new(IntLiteral { value: 123, span: 19..22 })),
@@ -2389,6 +2391,105 @@ mod tests {
                     ],
                     span: 56..75,
                     type_: Type::Tup(vec![Type::Unknown]),
+                })),
+                Expr::Ident(Box::new(Ident {
+                    name: "some_var".to_string(),
+                    span: 76..84,
+                    type_: Type::Unknown
+                }))
+            ]
+        );
+    }
+
+    #[test]
+    fn enum_struct_init() {
+        assert_eq!(
+            result: exprs(test_parse(
+                "func main() void { list:Cons(123) <. list:Cons(321) <. list:Nil; Person { age 18, name \"Nobu\", other stuff }; }"
+            )),
+            expected: vec![Expr::Call(Box::new(Call {
+                    callee: Expr::EnumVarAccess(Box::new(EnumVarAccess {
+                        source: "list".to_string(),
+                        variant: "Cons".to_string(),
+                        span: 23..29,
+                        type_: Type::Named("list".to_string())
+                    })),
+                    arguments: vec![
+                        Expr::Int(Box::new(IntLiteral { value: 123, span: 29..32 })),
+                        Expr::Call(Box::new(Call {
+                            callee: Expr::EnumVarAccess(Box::new(EnumVarAccess {
+                                source: "list".to_string(),
+                                variant: "Cons".to_string(),
+                                span: 41..47,
+                                type_: Type::Named("list".to_string())
+                            })),
+                            arguments: vec![
+                                Expr::Int(Box::new(IntLiteral { value: 321, span: 47..50 })),
+                                Expr::EnumVarAccess(Box::new(EnumVarAccess {
+                                    source: "list".to_string(),
+                                    variant: "Nil".to_string(),
+                                    span: 59..64,
+                                    type_: Type::Named("list".to_string())
+                                }))
+                            ],
+                            type_: Type::Unknown,
+                            span: 46..64
+                        }))
+                    ],
+                    type_: Type::Unknown,
+                    span: 28..64
+                })),
+                Expr::StructInit(Box::new(StructInit {
+                    name: "Person".to_string(),
+                    arguments: vec![
+                        StructInitArg {
+                            name: "age".to_string(),
+                            value: Expr::Int(Box::new(IntLiteral { value: 18, span: 78..80 })),
+                            span: 74..81
+                        },
+                        StructInitArg {
+                            name: "name".to_string(),
+                            value: Expr::Str(Box::new(StrLiteral { value: "Nobu".to_string(), span: 87..93 })),
+                            span: 82..94
+                        },
+                        StructInitArg {
+                            name: "other".to_string(),
+                            value: Expr::Ident(Box::new(Ident {
+                                name: "stuff".to_string(),
+                                span: 101..106,
+                                type_: Type::Unknown
+                            })),
+                            span: 95..108
+                        }
+                    ],
+                    type_: Type::Named("Person".to_string()),
+                    span: 72..109
+                }))
+            ]
+        );
+    }
+
+    #[test]
+    fn struct_field_access() {
+        assert_eq!(
+            result: exprs(test_parse("func main() void { person'name.length(); }")),
+            expected: vec![
+                Expr::Call(Box::new(Call {
+                    callee: Expr::Ident(Box::new(Ident {
+                        name: "length".to_string(),
+                        span: 31..37,
+                        type_: Type::Unknown
+                    })),
+                    arguments: vec![
+                        Expr::StructFieldAccess(Box::new(StructFieldAccess {
+                            source: "person".to_string(),
+                            field: "name".to_string(),
+                            span: 25..31,
+                            type_: Type::Unknown
+                        }))
+                    ],
+                    span: 37..40,
+                    type_: Type::Unknown
                 }))
             ]
         );
