@@ -95,6 +95,6 @@ else
     // do something else
 
 /// While statements
-while condition {
+while (condition) {
     // do something
 }

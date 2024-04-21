@@ -738,6 +738,7 @@ impl<'a> Parser<'a> {
         match self.current()? {
             Token::When => self.parse_when(),
             Token::If => self.parse_if(true),
+            Token::While => self.parse_while(),
             _ => {
                 let expr = self.parse_expression()?;
 
@@ -1394,8 +1395,6 @@ impl<'a> Parser<'a> {
 
             Ok(Token::If) => self.parse_if(false),
 
-            Ok(Token::While) => self.parse_while(),
-
             Ok(Token::Let) => self.parse_let(),
 
             Ok(Token::Break) => self.parse_break(),
@@ -1871,7 +1870,25 @@ impl<'a> Parser<'a> {
 
         self.next();
 
+        expect!(
+            self.current()?,
+            Token::LeftParen,
+            self.lexer.span(),
+            "expected '('"
+        );
+
+        self.next();
+
         let cond = self.parse_expression()?;
+
+        expect!(
+            self.current()?,
+            Token::RightParen,
+            self.lexer.span(),
+            "expected ')'"
+        );
+
+        self.next();
 
         let body = self.parse_curly_body()?;
 
@@ -2998,7 +3015,6 @@ mod tests {
                 }))
             ]
         );
-
         assert_eq!(
             result: exprs(test_parse("func main() void { when (true) then void; }")),
             expected: vec![
@@ -3050,6 +3066,28 @@ mod tests {
                         Expr::Void(Box::new(Void { span: 47..51 }))
                     ]),
                     span: 19..54
+                }))
+            ]
+        );
+    }
+
+    #[test]
+    fn while_exprs() {
+        assert_eq!(
+            result: exprs(test_parse("func main() void { while (true) { \"hello\"; } }")),
+            expected: vec![
+                Expr::While(Box::new(While {
+                    condition: Expr::Bool(Box::new(BoolLiteral {
+                        value: true,
+                        span: 26..30
+                    })),
+                    body: vec![
+                        Expr::Str(Box::new(StrLiteral {
+                            value: "hello".to_string(),
+                            span: 34..41
+                        }))
+                    ],
+                    span: 19..46
                 }))
             ]
         );
