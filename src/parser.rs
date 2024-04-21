@@ -740,7 +740,7 @@ impl<'a> Parser<'a> {
             Token::If => self.parse_if(true),
             Token::While => self.parse_while(),
             _ => {
-                let expr = self.parse_expression()?;
+                let expr = self.parse_non_top_level_expression(false)?;
 
                 expect!(
                     self.current()?,
@@ -757,7 +757,23 @@ impl<'a> Parser<'a> {
     }
 
     fn parse_expression(&mut self) -> ParseResult<Expr> {
-        self.parse_assignment()
+        self.parse_non_top_level_expression(true)
+    }
+
+    fn parse_non_top_level_expression(
+        &mut self,
+        include_if_when_while: bool,
+    ) -> ParseResult<Expr> {
+        if include_if_when_while {
+            match self.current()? {
+                Token::When => self.parse_when(),
+                Token::If => self.parse_if(true),
+                Token::While => self.parse_while(),
+                _ => self.parse_assignment(),
+            }
+        } else {
+            self.parse_assignment()
+        }
     }
 
     fn parse_assignment(&mut self) -> ParseResult<Expr> {
