@@ -767,7 +767,7 @@ impl<'a> Parser<'a> {
         if include_if_when_while {
             match self.current()? {
                 Token::When => self.parse_when(),
-                Token::If => self.parse_if(true),
+                Token::If => self.parse_if(false),
                 Token::While => self.parse_while(),
                 _ => self.parse_assignment(),
             }
@@ -3104,6 +3104,29 @@ mod tests {
                         }))
                     ],
                     span: 19..46
+                }))
+            ]
+        );
+    }
+
+    #[test]
+    fn break_return() {
+        assert_eq!(
+            result: exprs(test_parse("func main() void { break; return void; return 123; }")),
+            expected: vec![
+                Expr::Break(Box::new(Break {
+                    span: 19..24
+                })),
+                Expr::Return(Box::new(Return {
+                    value: Expr::Void(Box::new(Void { span: 33..37 })),
+                    span: 26..38
+                })),
+                Expr::Return(Box::new(Return {
+                    value: Expr::Int(Box::new(IntLiteral {
+                        value: 123,
+                        span: 46..49
+                    })),
+                    span: 39..50
                 }))
             ]
         );
