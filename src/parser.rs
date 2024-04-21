@@ -566,7 +566,6 @@ impl<'a> Parser<'a> {
         self.next();
 
         let mut body = Vec::<Expr>::new();
-
         while !matches!(self.current, Ok(Token::RightBrace)) {
             body.push(self.parse_standalone_expression()?);
         }
@@ -736,18 +735,24 @@ impl<'a> Parser<'a> {
     }
 
     fn parse_standalone_expression(&mut self) -> ParseResult<Expr> {
-        let expr = self.parse_expression()?;
+        match self.current()? {
+            Token::When => self.parse_when(),
+            Token::If => self.parse_if(true),
+            _ => {
+                let expr = self.parse_expression()?;
 
-        expect!(
-            self.current()?,
-            Token::SemiColon,
-            self.lexer.span(),
-            "expected ';' after an expression"
-        );
+                expect!(
+                    self.current()?,
+                    Token::SemiColon,
+                    self.lexer.span(),
+                    "expected ';' after an expression"
+                );
 
-        self.next();
+                self.next();
 
-        Ok(expr)
+                Ok(expr)
+            }
+        }
     }
 
     fn parse_expression(&mut self) -> ParseResult<Expr> {
@@ -1387,9 +1392,7 @@ impl<'a> Parser<'a> {
 
             Ok(Token::LeftParen) => self.parse_group(),
 
-            Ok(Token::If) => self.parse_if(),
-
-            Ok(Token::When) => self.parse_when(),
+            Ok(Token::If) => self.parse_if(false),
 
             Ok(Token::While) => self.parse_while(),
 
@@ -1842,11 +1845,16 @@ impl<'a> Parser<'a> {
         self.next();
 
         let value = self.parse_expression()?;
+        let value_span = value.get_span().clone();
 
         Ok(Expr::DefVar(Box::new(DefVar {
             name,
             value,
-            type_,
+            type_: if matches!(type_, Spanned(Type::Unknown, ..)) {
+                Spanned(Type::Unknown, value_span)
+            } else {
+                type_
+            },
             span: combine(&span, &self.lexer.span()),
         })))
     }
@@ -1886,13 +1894,40 @@ impl<'a> Parser<'a> {
 
         self.next();
 
+        expect!(
+            self.current()?,
+            Token::LeftParen,
+            self.lexer.span(),
+            "expected '('"
+        );
+
+        self.next();
+
         let cond = self.parse_expression()?;
 
-        let then_body = self.parse_curly_body()?;
+        expect!(
+            self.current()?,
+            Token::RightParen,
+            self.lexer.span(),
+            "expected ')'"
+        );
+
+        self.next();
+
+        let then_body = if matches!(self.current, Ok(Token::Then)) {
+            self.next();
+            vec![self.parse_standalone_expression()?]
+        } else {
+            self.parse_curly_body()?
+        };
 
         let else_body = if matches!(self.current, Ok(Token::Else)) {
             self.next();
-            Some(self.parse_curly_body()?)
+            if matches!(self.current, Ok(Token::LeftBrace)) {
+                Some(self.parse_curly_body()?)
+            } else {
+                Some(vec![self.parse_standalone_expression()?])
+            }
         } else {
             None
         };
@@ -1905,14 +1940,32 @@ impl<'a> Parser<'a> {
         })))
     }
 
-    fn parse_if(&mut self) -> ParseResult<Expr> {
+    fn parse_if(&mut self, standalone: bool) -> ParseResult<Expr> {
         let span = self.lexer.span();
 
         expect!(self.current()?, Token::If, self.lexer.span(), "expected 'if'");
 
         self.next();
 
+        expect!(
+            self.current()?,
+            Token::LeftParen,
+            self.lexer.span(),
+            "expected '('"
+        );
+
+        self.next();
+
         let cond = self.parse_expression()?;
+
+        expect!(
+            self.current()?,
+            Token::RightParen,
+            self.lexer.span(),
+            "expected ')'"
+        );
+
+        self.next();
 
         let then_body = if matches!(self.current, Ok(Token::Then)) {
             self.next();
@@ -1933,7 +1986,11 @@ impl<'a> Parser<'a> {
         let else_body = if matches!(self.current, Ok(Token::LeftBrace)) {
             self.parse_curly_body()?
         } else {
-            vec![self.parse_standalone_expression()?]
+            if standalone {
+                vec![self.parse_standalone_expression()?]
+            } else {
+                vec![self.parse_expression()?]
+            }
         };
 
         Ok(Expr::If(Box::new(If {
@@ -2796,14 +2853,14 @@ mod tests {
                         type_: Type::Unknown
                     })),
                     span: 43..53,
-                    type_: Spanned(Type::Unknown, 47..48)
+                    type_: Spanned(Type::Unknown, 51..52)
                 }))
             ]
         );
     }
 
     #[test]
-    fn indexing() {
+    fn index() {
         assert_eq!(
             result: exprs(test_parse("func main() void { list[0]; #(1, 2)[idx + 1]; }")),
             expected: vec![
@@ -2850,6 +2907,149 @@ mod tests {
                     })),
                     span: 35..45,
                     type_: Type::Unknown
+                }))
+            ]
+        );
+    }
+
+    #[test]
+    fn if_exprs() {
+        assert_eq!(
+            result: exprs(test_parse("func main() void { if (true) { void; } else { void; } }")),
+            expected: vec![
+                Expr::If(Box::new(If {
+                    condition: Expr::Bool(Box::new(BoolLiteral {
+                        value: true,
+                        span: 23..27
+                    })),
+                    then: vec![
+                        Expr::Void(Box::new(Void { span: 31..35 }))
+                    ],
+                    else_: vec![
+                        Expr::Void(Box::new(Void { span: 46..50 }))
+                    ],
+                    type_: Type::Unknown,
+                    span: 19..55
+                }))
+            ]
+        );
+
+        assert_eq!(
+            result: exprs(test_parse("func main() void { if (true) then void; else void; }")),
+            expected: vec![
+                Expr::If(Box::new(If {
+                    condition: Expr::Bool(Box::new(BoolLiteral {
+                        value: true,
+                        span: 23..27
+                    })),
+                    then: vec![
+                        Expr::Void(Box::new(Void { span: 34..38 }))
+                    ],
+                    else_: vec![
+                        Expr::Void(Box::new(Void { span: 45..49 }))
+                    ],
+                    type_: Type::Unknown,
+                    span: 19..52
+                }))
+            ]
+        );
+
+        assert_eq!(
+            result: exprs(test_parse("func main() void { let a = if (true) then void; else void; }")),
+            expected: vec![
+                Expr::DefVar(Box::new(DefVar {
+                    name: "a".to_string(),
+                    value: Expr::If(Box::new(If {
+                        condition: Expr::Bool(Box::new(BoolLiteral {
+                            value: true,
+                            span: 31..35
+                        })),
+                        then: vec![
+                            Expr::Void(Box::new(Void { span: 42..46 }))
+                        ],
+                        else_: vec![
+                            Expr::Void(Box::new(Void { span: 53..57 }))
+                        ],
+                        span: 27..58,
+                        type_: Type::Unknown
+                    })),
+                    span: 19..58,
+                    type_: Spanned(Type::Unknown, 27..58)
+                }))
+            ]
+        );
+    }
+
+    #[test]
+    fn when_exprs() {
+        assert_eq!(
+            result: exprs(test_parse("func main() void { when (true) { void; } }")),
+            expected: vec![
+                Expr::When(Box::new(When {
+                    condition: Expr::Bool(Box::new(BoolLiteral {
+                        value: true,
+                        span: 25..29
+                    })),
+                    then: vec![
+                        Expr::Void(Box::new(Void { span: 33..37 }))
+                    ],
+                    else_: None,
+                    span: 19..42,
+                }))
+            ]
+        );
+
+        assert_eq!(
+            result: exprs(test_parse("func main() void { when (true) then void; }")),
+            expected: vec![
+                Expr::When(Box::new(When {
+                    condition: Expr::Bool(Box::new(BoolLiteral {
+                        value: true,
+                        span: 25..29
+                    })),
+                    then: vec![
+                        Expr::Void(Box::new(Void { span: 36..40 }))
+                    ],
+                    else_: None,
+                    span: 19..43,
+                }))
+            ]
+        );
+
+        assert_eq!(
+            result: exprs(test_parse("func main() void { when (true) { void; } else { void; } }")),
+            expected: vec![
+                Expr::When(Box::new(When {
+                    condition: Expr::Bool(Box::new(BoolLiteral {
+                        value: true,
+                        span: 25..29
+                    })),
+                    then: vec![
+                        Expr::Void(Box::new(Void { span: 33..37 }))
+                    ],
+                    else_: Some(vec![
+                        Expr::Void(Box::new(Void { span: 48..52 }))
+                    ]),
+                    span: 19..57
+                }))
+            ]
+        );
+
+        assert_eq!(
+            result: exprs(test_parse("func main() void { when (true) then void; else void; }")),
+            expected: vec![
+                Expr::When(Box::new(When {
+                    condition: Expr::Bool(Box::new(BoolLiteral {
+                        value: true,
+                        span: 25..29
+                    })),
+                    then: vec![
+                        Expr::Void(Box::new(Void { span: 36..40 }))
+                    ],
+                    else_: Some(vec![
+                        Expr::Void(Box::new(Void { span: 47..51 }))
+                    ]),
+                    span: 19..54
                 }))
             ]
         );

@@ -66,28 +66,33 @@ func check_credentials() bool {
 
 
 /// If expressions
-if blah {
+if (blah) {
     // do something
     // in multiple lines
 } else {
     // do something else
     // in multiple lines
-}
+};
 
-if blah then
+if (blah) then
     // do something in one line
 else
     // do something in one line
 
-let abc = if blah then 123 else 321;
+let abc = if blah then 123; else 321;
 
 
 /// When statements
-when blah {
+when (blah) {
     // do something
 } else {
     // do something else
 }
+
+when (blah) then
+    // do something
+else
+    // do something else
 
 /// While statements
 while condition {
