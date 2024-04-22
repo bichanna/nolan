@@ -560,7 +560,7 @@ impl<'a> Parser<'a> {
             self.current()?,
             Token::LeftBrace,
             self.lexer.span(),
-            "expected '{' for the start of a function body"
+            "expected '{'"
         );
 
         self.next();
@@ -739,6 +739,7 @@ impl<'a> Parser<'a> {
             Token::When => self.parse_when(),
             Token::If => self.parse_if(true),
             Token::While => self.parse_while(),
+            Token::Match => self.parse_match(),
             _ => {
                 let expr = self.parse_non_top_level_expression(false)?;
 
@@ -769,6 +770,7 @@ impl<'a> Parser<'a> {
                 Token::When => self.parse_when(),
                 Token::If => self.parse_if(false),
                 Token::While => self.parse_while(),
+                Token::Match => self.parse_match(),
                 _ => self.parse_assignment(),
             }
         } else {
@@ -1422,8 +1424,6 @@ impl<'a> Parser<'a> {
                 Ok(Expr::Void(Box::new(Void { span })))
             }
 
-            Ok(Token::Match) => self.parse_match(),
-
             Err(ref err) => {
                 Err(Spanned(ParseErrorKind::LexErr(err.clone()), span))
             }
@@ -1448,7 +1448,25 @@ impl<'a> Parser<'a> {
 
         self.next();
 
+        expect!(
+            self.current()?,
+            Token::LeftParen,
+            self.lexer.span(),
+            "expected '('"
+        );
+
+        self.next();
+
         let expr = self.parse_expression()?;
+
+        expect!(
+            self.current()?,
+            Token::RightParen,
+            self.lexer.span(),
+            "expected ')'"
+        );
+
+        self.next();
 
         expect!(
             self.current()?,
@@ -1551,7 +1569,7 @@ impl<'a> Parser<'a> {
 
             Token::LeftBrak => self.parse_list_pattern()?,
 
-            Token::LT => self.parse_tuple_pattern()?,
+            Token::Hash => self.parse_tuple_pattern()?,
 
             Token::Ident(ident) => self.parse_ident_pattern(ident)?,
 
@@ -1724,7 +1742,21 @@ impl<'a> Parser<'a> {
     fn parse_tuple_pattern(&mut self) -> ParseResult<Pattern> {
         let span = self.lexer.span();
 
-        expect!(self.current()?, Token::LT, self.lexer.span(), "expected '<'");
+        expect!(
+            self.current()?,
+            Token::Hash,
+            self.lexer.span(),
+            "expected '#'"
+        );
+
+        self.next();
+
+        expect!(
+            self.current()?,
+            Token::LeftParen,
+            self.lexer.span(),
+            "expected '('"
+        );
 
         self.next();
 
@@ -1739,7 +1771,12 @@ impl<'a> Parser<'a> {
             }
         }
 
-        expect!(self.current()?, Token::GT, self.lexer.span(), "expected '>'");
+        expect!(
+            self.current()?,
+            Token::RightParen,
+            self.lexer.span(),
+            "expected ')'"
+        );
 
         self.next();
 
@@ -2494,7 +2531,7 @@ mod tests {
         assert_eq!(
             result: multi_errors(test_parse("func main() void }"), 2),
             expected: vec![
-                parse_error!("expected '{' for the start of a function body", 17..18),
+                parse_error!("expected '{'", 17..18),
                 parse_error!("expected a top-level expression but found 'RightBrace'", 17..18)
             ]
         );
@@ -3131,4 +3168,178 @@ mod tests {
             ]
         );
     }
+
+    #[test]
+    fn match_exprs() {
+        assert_eq!(
+            result: exprs(test_parse(
+r#"func main() void {
+    match (#(n % 3, n % 5)) {
+        #(0, 0) then "fizz buzz",
+        #(0, _) then "fizz",
+        #(_, 0) { "buzz"; },
+        _ { n.to_str(); }
+    }
+}"#
+            )),
+            expected: vec![
+                Expr::Match(Box::new(Match {
+                    expression: Expr::Tuple(Box::new(Tuple {
+                        values: vec![
+                            Expr::Binary(Box::new(Binary {
+                                lhs: Expr::Ident(Box::new(Ident {
+                                    name: "n".to_string(),
+                                    span: 32..33,
+                                    type_: Type::Unknown
+                                })),
+                                rhs: Expr::Int(Box::new(IntLiteral {
+                                    value: 3,
+                                    span: 36..37
+                                })),
+                                operator: BinaryOp {
+                                    kind: BinaryOpKind::Rem,
+                                    span: 34..35
+                                },
+                                span: 32..37,
+                                type_: Type::Unknown
+                            })),
+                            Expr::Binary(Box::new(Binary {
+                                lhs: Expr::Ident(Box::new(Ident {
+                                    name: "n".to_string(),
+                                    span: 39..40,
+                                    type_: Type::Unknown
+                                })),
+                                rhs: Expr::Int(Box::new(IntLiteral {
+                                    value: 5,
+                                    span: 43..44
+                                })),
+                                operator: BinaryOp {
+                                    kind: BinaryOpKind::Rem,
+                                    span: 41..42
+                                },
+                                span: 39..44,
+                                type_: Type::Unknown
+                            }))
+                        ],
+                        span: 30..46,
+                        type_: Type::Tup(vec![Type::Unknown])
+                    })),
+                    expressions: vec![
+                        MatchCase {
+                            pattern: Pattern::Tuple(Box::new(TuplePattern {
+                                values: vec![
+                                    Pattern::Int(Box::new(IntLiteral {
+                                        value: 0,
+                                        span: 59..60
+                                    })),
+                                    Pattern::Int(Box::new(IntLiteral {
+                                        value: 0,
+                                        span: 62..63
+                                    }))
+                                ],
+                                span: 57..69
+                            })),
+                            guard: None,
+                            body: vec![
+                                Expr::Str(Box::new(StrLiteral {
+                                    value: "fizz buzz".to_string(),
+                                    span: 70..81
+                                }))
+                            ],
+                            type_: Type::Unknown,
+                            span: 57..82
+                        },
+                        MatchCase {
+                            pattern: Pattern::Tuple(Box::new(TuplePattern {
+                                values: vec![
+                                    Pattern::Int(Box::new(IntLiteral {
+                                        value: 0,
+                                        span: 93..94
+                                    })),
+                                    Pattern::Wildcard(96..97)
+                                ],
+                                span: 91..103
+                            })),
+                            guard: None,
+                            body: vec![
+                                Expr::Str(Box::new(StrLiteral {
+                                    value: "fizz".to_string(),
+                                    span: 104..110
+                                }))
+                            ],
+                            type_: Type::Unknown,
+                            span: 91..111
+                        },
+                        MatchCase {
+                            pattern: Pattern::Tuple(Box::new(TuplePattern {
+                                values: vec![
+                                    Pattern::Wildcard(122..123),
+                                    Pattern::Int(Box::new(IntLiteral {
+                                        value: 0,
+                                        span: 125..126
+                                    }))
+                                ],
+                                span: 120..129
+                            })),
+                            guard: None,
+                            body: vec![
+                                Expr::Str(Box::new(StrLiteral {
+                                    value: "buzz".to_string(),
+                                    span: 130..136
+                                }))
+                            ],
+                            type_: Type::Unknown,
+                            span: 120..140
+                        },
+                        MatchCase {
+                            pattern: Pattern::Wildcard(149..150),
+                            guard: None,
+                            body: vec![
+                                Expr::Call(Box::new(Call {
+                                    callee: Expr::Ident(Box::new(Ident {
+                                        name: "to_str".to_string(),
+                                        span: 155..161,
+                                        type_: Type::Unknown
+                                    })),
+                                    arguments: vec![
+                                        Expr::Ident(Box::new(Ident {
+                                            name: "n".to_string(),
+                                            span: 153..154,
+                                            type_: Type::Unknown
+                                        }))
+                                    ],
+                                    type_: Type::Unknown,
+                                    span: 161..164
+                                }))
+                            ],
+                            type_: Type::Unknown,
+                            span: 149..172
+                        }
+                    ],
+                    type_: Type::Unknown,
+                    span: 23..174
+                })),
+            ]
+        );
+
+        assert_eq!(
+            result: exprs(test_parse(
+r#"func main() void {
+    match (void) {}
+}
+"#
+            )),
+            expected: vec![
+                Expr::Match(Box::new(Match {
+                    expression: Expr::Void(Box::new(Void { span: 30..34 })),
+                    expressions: vec![],
+                    type_: Type::Unknown,
+                    span: 23..40
+                }))
+            ]
+        );
+    }
+
+    #[test]
+    fn match_expr_guards() {}
 }
