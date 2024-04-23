@@ -1512,7 +1512,28 @@ impl<'a> Parser<'a> {
 
         let guard = if matches!(self.current, Ok(Token::If)) {
             self.next();
-            Some(self.parse_expression()?)
+
+            expect!(
+                self.current()?,
+                Token::LeftParen,
+                self.lexer.span(),
+                "expected '('"
+            );
+
+            self.next();
+
+            let expr = self.parse_expression()?;
+
+            expect!(
+                self.current()?,
+                Token::RightParen,
+                self.lexer.span(),
+                "expected ')'"
+            );
+
+            self.next();
+
+            Some(expr)
         } else {
             None
         };
@@ -3341,5 +3362,94 @@ r#"func main() void {
     }
 
     #[test]
-    fn match_expr_guards() {}
+    fn match_expr_guards() {
+        assert_eq!(
+            result: exprs(test_parse(
+r#"func main() void {
+    match (void) {
+        n if (n != 0) { void; },
+        [a, b] if (a == b) { void; }
+    }
+}"#
+            )),
+            expected: vec![
+                Expr::Match(Box::new(Match {
+                    expression: Expr::Void(Box::new(Void { span: 30..34 })),
+                    expressions: vec![
+                        MatchCase {
+                            pattern: Pattern::Ident(Box::new(Ident {
+                                name: "n".to_string(),
+                                span: 46..47,
+                                type_: Type::Unknown
+                            })),
+                            guard: Some(Expr::Binary(Box::new(Binary {
+                                lhs: Expr::Ident(Box::new(Ident {
+                                    name: "n".to_string(),
+                                    span: 52..53,
+                                    type_: Type::Unknown
+                                })),
+                                rhs: Expr::Int(Box::new(IntLiteral {
+                                    value: 0,
+                                    span: 57..58
+                                })),
+                                operator: BinaryOp {
+                                    kind: BinaryOpKind::NEq,
+                                    span: 54..56
+                                },
+                                span: 52..58,
+                                type_: Type::Bool
+                            }))),
+                            body: vec![
+                                Expr::Void(Box::new(Void { span: 62..66 }))
+                            ],
+                            type_: Type::Unknown,
+                            span: 46..70
+                        },
+                        MatchCase {
+                            pattern: Pattern::List(Box::new(ListPattern {
+                                elements: vec![
+                                    Pattern::Ident(Box::new(Ident {
+                                        name: "a".to_string(),
+                                        span: 80..81,
+                                        type_: Type::Unknown
+                                    })),
+                                    Pattern::Ident(Box::new(Ident {
+                                        name: "b".to_string(),
+                                        span: 83..84,
+                                        type_: Type::Unknown
+                                    }))
+                                ],
+                                span: 79..88
+                            })),
+                            guard: Some(Expr::Binary(Box::new(Binary {
+                                lhs: Expr::Ident(Box::new(Ident {
+                                    name: "a".to_string(),
+                                    span: 90..91,
+                                    type_: Type::Unknown
+                                })),
+                                rhs: Expr::Ident(Box::new(Ident {
+                                    name: "b".to_string(),
+                                    span: 95..96,
+                                    type_: Type::Unknown
+                                })),
+                                operator: BinaryOp {
+                                    kind: BinaryOpKind::Eq,
+                                    span: 92..94
+                                },
+                                span: 90..96,
+                                type_: Type::Bool
+                            }))),
+                            body: vec![
+                                Expr::Void(Box::new(Void { span: 100..104 }))
+                            ],
+                            type_: Type::Unknown,
+                            span: 79..113
+                        }
+                    ],
+                    type_: Type::Unknown,
+                    span: 23..115
+                })),
+            ]
+        );
+    }
 }
