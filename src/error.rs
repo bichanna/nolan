@@ -131,3 +131,17 @@ impl fmt::Display for ParseError {
         write!(f, "{res}")
     }
 }
+
+pub type TypeCheckError = Spanned<String>;
+
+impl Reportable for TypeCheckError {
+    fn get_span(&self) -> &Span {
+        &self.1
+    }
+}
+
+impl fmt::Display for TypeCheckError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.0)
+    }
+}
