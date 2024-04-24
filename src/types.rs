@@ -13,8 +13,8 @@ pub enum Type {
     Bool,                                     // bool
     Void,                                     // void
     List(Box<Type>),                          // []`Type`
-    Tup(Vec<Type>),                           // <`Type`...>
-    Func(Vec<SpannedType>, Box<SpannedType>), // func(`Type`...): `Type`
+    Tup(Vec<Type>),                           // #(`Type`...)
+    Func(Vec<SpannedType>, Box<SpannedType>), // func(`Type`...) `Type`
     Named(String),
     Unknown,
 }
@@ -44,7 +44,7 @@ impl Display for Type {
             Type::Void => "void".to_string(),
             Type::List(t) => format!("[]{t}"),
             Type::Tup(ts) => format!(
-                "<{}>",
+                "#({})",
                 ts.iter()
                     .map(|t| t.to_string())
                     .collect::<Vec<String>>()

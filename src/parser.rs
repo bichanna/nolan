@@ -208,12 +208,16 @@ impl<'a> Parser<'a> {
     fn parse_tuple_type(&mut self) -> ParseResult<SpannedType> {
         let span = self.lexer.span();
 
-        expect!(self.current()?, Token::LT, span, "expected '<'");
+        expect!(self.current()?, Token::Hash, span, "expected '#'");
+
+        self.next();
+
+        expect!(self.current()?, Token::LeftParen, span, "expected '('");
 
         self.next();
 
         let mut types = Vec::<Type>::new();
-        while !matches!(self.current, Ok(Token::GT)) {
+        while !matches!(self.current, Ok(Token::RightParen)) {
             types.push(self.parse_type()?.0);
 
             if !matches!(self.current, Ok(Token::Comma)) {
@@ -225,9 +229,9 @@ impl<'a> Parser<'a> {
 
         expect!(
             self.current()?,
-            Token::GT,
+            Token::RightParen,
             self.lexer.span(),
-            "expected '>' after type expressions"
+            "expected ')' after type expressions"
         );
 
         self.next();
@@ -291,7 +295,7 @@ impl<'a> Parser<'a> {
     fn parse_type(&mut self) -> ParseResult<SpannedType> {
         match self.current()? {
             Token::LeftBrak => self.parse_list_type(),
-            Token::LT => self.parse_tuple_type(),
+            Token::Hash => self.parse_tuple_type(),
             Token::Func => self.parse_func_type(),
             _ => {
                 let current = self.current()?.clone();
@@ -3448,6 +3452,139 @@ r#"func main() void {
                     ],
                     type_: Type::Unknown,
                     span: 23..115
+                })),
+            ]
+        );
+    }
+
+    #[test]
+    fn type_exprs() {
+        assert_eq!(
+            result: exprs(test_parse(
+r#"func main() void {
+    let a int = 0;
+    let b float = 0.0;
+    let c str = "hello";
+    let d bool = true;
+    let e void = void;
+    let f [][]int = [[0, 0]];
+    let g #(#(int, int), str) = #(#(1, 1), "hello");
+    let h func(int) int = 0;
+}"#
+            )),
+            expected: vec![
+                Expr::DefVar(Box::new(DefVar {
+                    name: "a".to_string(),
+                    value: Expr::Int(Box::new(IntLiteral {
+                        value: 0,
+                        span: 35..36,
+                    })),
+                    type_: Spanned(Type::Int, 29..32),
+                    span: 23..37
+                })),
+                Expr::DefVar(Box::new(DefVar {
+                    name: "b".to_string(),
+                    value: Expr::Float(Box::new(FloatLiteral {
+                        value: 0.0,
+                        span: 56..59,
+                    })),
+                    type_: Spanned(Type::Float, 48..53),
+                    span: 42..60
+                })),
+                Expr::DefVar(Box::new(DefVar {
+                    name: "c".to_string(),
+                    value: Expr::Str(Box::new(StrLiteral {
+                        value: "hello".to_string(),
+                        span: 77..84,
+                    })),
+                    type_: Spanned(Type::Str, 71..74),
+                    span: 65..85
+                })),
+                Expr::DefVar(Box::new(DefVar {
+                    name: "d".to_string(),
+                    value: Expr::Bool(Box::new(BoolLiteral {
+                        value: true,
+                        span: 103..107,
+                    })),
+                    type_: Spanned(Type::Bool, 96..100),
+                    span: 90..108
+                })),
+                Expr::DefVar(Box::new(DefVar {
+                    name: "e".to_string(),
+                    value: Expr::Void(Box::new(Void {
+                        span: 126..130,
+                    })),
+                    type_: Spanned(Type::Void, 119..123),
+                    span: 113..131
+                })),
+                Expr::DefVar(Box::new(DefVar {
+                    name: "f".to_string(),
+                    value: Expr::List(Box::new(List {
+                        elements: vec![
+                            Expr::List(Box::new(List {
+                                elements: vec![
+                                    Expr::Int(Box::new(IntLiteral {
+                                        value: 0,
+                                        span: 154..155
+                                    })),
+                                    Expr::Int(Box::new(IntLiteral {
+                                        value: 0,
+                                        span: 157..158
+                                    }))
+                                ],
+                                span: 153..160,
+                                type_: Type::List(Box::new(Type::Unknown))
+                            }))
+                        ],
+                        span: 152..161,
+                        type_: Type::List(Box::new(Type::Unknown))
+                    })),
+                    type_: Spanned(Type::List(Box::new(Type::List(Box::new(Type::Int)))), 142..149),
+                    span: 136..161
+                })),
+                Expr::DefVar(Box::new(DefVar {
+                    name: "g".to_string(),
+                    value: Expr::Tuple(Box::new(Tuple {
+                        values: vec![
+                            Expr::Tuple(Box::new(Tuple {
+                                values: vec![
+                                    Expr::Int(Box::new(IntLiteral {
+                                        value: 1,
+                                        span: 198..199
+                                    })),
+                                    Expr::Int(Box::new(IntLiteral {
+                                        value: 1,
+                                        span: 201..202
+                                    }))
+                                ],
+                                span: 196..204,
+                                type_: Type::Tup(vec![Type::Unknown])
+                            })),
+                            Expr::Str(Box::new(StrLiteral {
+                                value: "hello".to_string(),
+                                span: 205..212
+                            }))
+                        ],
+                        type_: Type::Tup(vec![Type::Unknown]),
+                        span: 194..214
+                    })),
+                    type_: Spanned(Type::Tup(vec![Type::Tup(vec![Type::Int, Type::Int]), Type::Str]), 172..193),
+                    span: 166..214
+                })),
+                Expr::DefVar(Box::new(DefVar {
+                    name: "h".to_string(),
+                    value: Expr::Int(Box::new(IntLiteral {
+                        value: 0,
+                        span: 241..242
+                    })),
+                    type_: Spanned(
+                        Type::Func(
+                            vec![Spanned(Type::Int, 230..233)],
+                            Box::new(Spanned(Type::Int, 235..238))
+                        ),
+                        225..240
+                    ),
+                    span: 219..243
                 })),
             ]
         );
