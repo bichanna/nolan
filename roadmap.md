@@ -38,6 +38,9 @@
  - [ ] Import all visible symbols from a module.
 
 ## Compiler Specifics
+ - [x] Lexer
+ - [x] Parser
+ - [ ] Type checker
  - [ ] Backends.
    - [ ] C
    - [ ] Cranelift
