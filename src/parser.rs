@@ -646,7 +646,6 @@ impl<'a> Parser<'a> {
                 parameters: params,
                 return_type,
                 body,
-                type_: Type::Unknown,
                 span: span.clone(),
             },
             span,
@@ -821,7 +820,7 @@ impl<'a> Parser<'a> {
         Ok(Expr::AssignVar(Box::new(AssignVar {
             left,
             value: right_val,
-            type_: Type::Unknown,
+            type_: None,
             span: combine(&span, &self.lexer.span()),
         })))
     }
@@ -844,7 +843,7 @@ impl<'a> Parser<'a> {
         Ok(Expr::AssignVar(Box::new(AssignVar {
             left: expr,
             value: bin,
-            type_: Type::Unknown,
+            type_: None,
             span: combine(&span, &self.lexer.span()),
         })))
     }
@@ -1110,7 +1109,6 @@ impl<'a> Parser<'a> {
             module: module.clone(),
             constant,
             span: combine(&span, &self.lexer.span()),
-            type_: Type::Unknown,
         })))
     }
 
@@ -1152,7 +1150,6 @@ impl<'a> Parser<'a> {
             source: source.clone(),
             field,
             span: combine(&span, &self.lexer.span()),
-            type_: Type::Unknown,
         })))
     }
 
@@ -1299,7 +1296,6 @@ impl<'a> Parser<'a> {
         Ok(Expr::Index(Box::new(Index {
             source,
             index,
-            type_: Type::Unknown,
             span: combine(&span, &self.lexer.span()),
         })))
     }
@@ -1362,7 +1358,6 @@ impl<'a> Parser<'a> {
         Ok(Expr::Call(Box::new(Call {
             callee,
             arguments: args,
-            type_: Type::Unknown,
             span: combine(&span, &self.lexer.span()),
         })))
     }
@@ -1404,11 +1399,7 @@ impl<'a> Parser<'a> {
             Ok(Token::Ident(ref ident)) => {
                 let ident = ident.clone();
                 self.next();
-                Ok(Expr::Ident(Box::new(Ident {
-                    name: ident,
-                    span,
-                    type_: Type::Unknown,
-                })))
+                Ok(Expr::Ident(Box::new(Ident { name: ident, span })))
             }
 
             Ok(Token::BackSlash) => self.parse_closure(),
@@ -1504,7 +1495,6 @@ impl<'a> Parser<'a> {
         Ok(Expr::Match(Box::new(Match {
             expression: expr,
             expressions: cases,
-            type_: Type::Unknown,
             span: combine(&span, &self.lexer.span()),
         })))
     }
@@ -1553,7 +1543,6 @@ impl<'a> Parser<'a> {
             pattern,
             guard,
             body: case_body,
-            type_: Type::Unknown,
             span: combine(&span, &self.lexer.span()),
         })
     }
@@ -1629,11 +1618,7 @@ impl<'a> Parser<'a> {
         match self.current()? {
             Token::LeftBrace => self.parse_struct_pattern(span, ident),
             Token::Colon => self.parse_enum_var_pattern(span, ident),
-            _ => Ok(Pattern::Ident(Box::new(Ident {
-                name: ident,
-                span,
-                type_: Type::Unknown,
-            }))),
+            _ => Ok(Pattern::Ident(Box::new(Ident { name: ident, span }))),
         }
     }
 
@@ -1721,10 +1706,10 @@ impl<'a> Parser<'a> {
         self.next();
 
         let enum_var_access = EnumVarAccess {
-            source: ident,
+            source: ident.clone(),
             variant,
+            type_: Type::Named(ident),
             span: combine(&span, &self.lexer.span()),
-            type_: Type::Unknown,
         };
 
         if matches!(self.current, Ok(Token::LeftParen)) {
@@ -1914,7 +1899,7 @@ impl<'a> Parser<'a> {
         let type_ = if !matches!(self.current, Ok(Token::Eq)) {
             self.parse_type()?
         } else {
-            Spanned(Type::Unknown, ident_span)
+            Spanned(Type::Named(name.clone()), ident_span)
         };
 
         expect!(self.current()?, Token::Eq, self.lexer.span(), "expected '='");
@@ -1927,11 +1912,7 @@ impl<'a> Parser<'a> {
         Ok(Expr::DefVar(Box::new(DefVar {
             name,
             value,
-            type_: if matches!(type_, Spanned(Type::Unknown, ..)) {
-                Spanned(Type::Unknown, value_span)
-            } else {
-                type_
-            },
+            type_,
             span: combine(&span, &self.lexer.span()),
         })))
     }
@@ -2092,7 +2073,6 @@ impl<'a> Parser<'a> {
             condition: cond,
             then: then_body,
             else_: else_body,
-            type_: Type::Unknown,
             span: combine(&span, &self.lexer.span()),
         })))
     }
@@ -2110,7 +2090,6 @@ impl<'a> Parser<'a> {
         self.next();
 
         let expr = self.parse_expression()?;
-        let type_ = expr.get_type().clone();
 
         expect!(
             self.current()?,
@@ -2123,7 +2102,6 @@ impl<'a> Parser<'a> {
 
         Ok(Expr::Group(Box::new(Group {
             expression: expr,
-            type_,
             span: combine(&span, &self.lexer.span()),
         })))
     }
@@ -2155,7 +2133,6 @@ impl<'a> Parser<'a> {
             parameters: params,
             return_type,
             body,
-            type_: Type::Unknown,
             span: combine(&span, &self.lexer.span()),
         })))
     }
@@ -2195,7 +2172,6 @@ impl<'a> Parser<'a> {
         Ok(Expr::List(Box::new(List {
             elements,
             span: combine(&span, &self.lexer.span()),
-            type_: Type::List(Box::new(Type::Unknown)),
         })))
     }
 
@@ -2243,7 +2219,6 @@ impl<'a> Parser<'a> {
         Ok(Expr::Tuple(Box::new(Tuple {
             values,
             span: combine(&span, &self.lexer.span()),
-            type_: Type::Tup(vec![Type::Unknown]),
         })))
     }
 }

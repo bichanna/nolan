@@ -16,7 +16,6 @@ pub enum Type {
     Tup(Vec<Type>),                           // #(`Type`...)
     Func(Vec<SpannedType>, Box<SpannedType>), // func(`Type`...) `Type`
     Named(String),
-    Unknown,
 }
 
 impl TryFrom<Token> for Type {
@@ -63,7 +62,6 @@ impl Display for Type {
                 }
             ),
             Type::Named(name) => name.to_string(),
-            Type::Unknown => unimplemented!(),
         };
 
         write!(f, "{}", res)
