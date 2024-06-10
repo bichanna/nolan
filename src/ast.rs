@@ -1,4 +1,7 @@
 use std::fmt::Debug;
+use std::rc::Rc;
+use string_interner::symbol::SymbolU32;
+use string_interner::DefaultStringInterner;
 
 use crate::error::{combine, SourcePath, Span, Spanned};
 use crate::lexer::Token;
@@ -43,7 +46,7 @@ impl Node for FloatLiteral {
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct StrLiteral {
-    pub value: String,
+    pub value: SymbolU32,
     pub span: Span,
 }
 
@@ -107,7 +110,7 @@ impl Node for Tuple {
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Ident {
-    pub name: String,
+    pub name: SymbolU32,
     pub span: Span,
 }
 
@@ -123,8 +126,8 @@ impl Node for Ident {
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct EnumVarAccess {
-    pub source: String,
-    pub variant: String,
+    pub source: SymbolU32,
+    pub variant: SymbolU32,
     pub type_: Type,
     pub span: Span,
 }
@@ -141,8 +144,8 @@ impl Node for EnumVarAccess {
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct StructFieldAccess {
-    pub source: String,
-    pub field: String,
+    pub source: SymbolU32,
+    pub field: SymbolU32,
     pub span: Span,
 }
 
@@ -158,8 +161,8 @@ impl Node for StructFieldAccess {
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct ModAccess {
-    pub module: String,
-    pub constant: String,
+    pub module: SymbolU32,
+    pub constant: SymbolU32,
     pub span: Span,
 }
 
@@ -175,14 +178,14 @@ impl Node for ModAccess {
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct EnumVarDef {
-    pub name: String,
+    pub name: SymbolU32,
     pub types: Vec<SpannedType>,
     pub span: Span,
 }
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct EnumDef {
-    pub name: String,
+    pub name: SymbolU32,
     pub variants: Vec<EnumVarDef>,
     pub span: Span,
 }
@@ -216,14 +219,14 @@ impl Node for Call {
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct StructFieldDef {
-    pub name: String,
+    pub name: SymbolU32,
     pub type_: SpannedType,
     pub span: Span,
 }
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct StructDef {
-    pub name: String,
+    pub name: SymbolU32,
     pub fields: Vec<StructFieldDef>,
     pub span: Span,
 }
@@ -240,14 +243,14 @@ impl Node for StructDef {
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct StructInitArg {
-    pub name: String,
+    pub name: SymbolU32,
     pub value: Expr,
     pub span: Span,
 }
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct StructInit {
-    pub name: String,
+    pub name: SymbolU32,
     pub arguments: Vec<StructInitArg>,
     pub type_: Type,
     pub span: Span,
@@ -265,16 +268,20 @@ impl Node for StructInit {
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Module {
-    pub name: String,
+    pub name: SymbolU32,
     pub path: SourcePath,
     pub expressions: Vec<TopLevelExpr>,
     pub type_: Type,
 }
 
 impl Module {
-    pub fn new(name: String, path: SourcePath) -> Self {
+    pub fn new(
+        name: Rc<String>,
+        interner: &mut DefaultStringInterner,
+        path: SourcePath,
+    ) -> Self {
         Self {
-            name: name.clone(),
+            name: interner.get_or_intern(name.as_ref()),
             path,
             expressions: vec![],
             type_: Type::Named(name),
@@ -294,7 +301,7 @@ impl Node for Module {
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct FuncParam {
-    pub name: String,
+    pub name: SymbolU32,
     pub type_: SpannedType,
     pub span: Span,
 }
@@ -321,7 +328,7 @@ impl Node for Closure {
 pub struct Func {
     pub pure: bool,
     pub rec: bool,
-    pub name: String,
+    pub name: SymbolU32,
     pub closure: Closure,
     pub span: Span,
 }
@@ -523,7 +530,7 @@ impl Node for AssignVar {
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct DefVar {
-    pub name: String,
+    pub name: SymbolU32,
     pub value: Expr,
     pub type_: SpannedType,
     pub span: Span,
@@ -558,8 +565,8 @@ impl Node for Index {
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Use {
-    pub module: String,
-    pub imports: Option<Vec<String>>,
+    pub module: SymbolU32,
+    pub imports: Option<Vec<SymbolU32>>,
     pub span: Span,
 }
 
@@ -575,7 +582,7 @@ impl Node for Use {
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Export {
-    pub symbols: Vec<Spanned<String>>,
+    pub symbols: Vec<Spanned<SymbolU32>>,
     pub span: Span,
 }
 
@@ -652,14 +659,14 @@ pub enum EnumVarPattern {
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct FieldPattern {
-    pub name: String,
+    pub name: SymbolU32,
     pub pattern: Pattern,
     pub span: Span,
 }
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct StructPattern {
-    pub source: String,
+    pub source: SymbolU32,
     pub fields: Vec<FieldPattern>,
     pub span: Span,
 }

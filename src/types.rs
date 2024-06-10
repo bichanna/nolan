@@ -1,4 +1,5 @@
 use std::fmt::Display;
+use std::rc::Rc;
 
 use crate::error::Spanned;
 use crate::lexer::Token;
@@ -15,7 +16,7 @@ pub enum Type {
     List(Box<Type>),                          // []`Type`
     Tup(Vec<Type>),                           // #(`Type`...)
     Func(Vec<SpannedType>, Box<SpannedType>), // func(`Type`...) `Type`
-    Named(String),
+    Named(Rc<String>),
 }
 
 impl TryFrom<Token> for Type {

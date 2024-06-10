@@ -10,6 +10,7 @@ license = "MIT"
 ariadne = "~0.4.0"
 logos = "~0.14.0"
 snailquote = "~0.3.1"
+string-interner = "~0.17.0"
 thiserror = "~1.0.57"
 
 [dev-dependencies]
