@@ -2399,10 +2399,7 @@ mod tests {
                         span: 18..28
                     },
                     EnumVarDef {
-                        name: "None".to_string(),
-                        types: vec![],
-                        span: 29..35
-                    }
+                        name: "None".to_string(), types: vec![], span: 29..35 }
                 ],
                 span: 0..35
             }))
@@ -2497,7 +2494,6 @@ mod tests {
                     ],
                     return_type: Spanned(Type::Void, 22..26),
                     body: vec![],
-                    type_: Type::Unknown,
                     span: 0..29,
                 },
                 span: 0..29
@@ -2516,7 +2512,6 @@ mod tests {
                     body: vec![
                         Expr::Void(Box::new(Void { span: 20..24 }))
                     ],
-                    type_: Type::Unknown,
                     span: 0..25
                 },
                 span: 0..25
@@ -2588,7 +2583,6 @@ mod tests {
                         })),
                     ],
                     span: 45..55,
-                    type_: Type::List(Box::new(Type::Unknown)),
                 })),
                 Expr::Tuple(Box::new(Tuple {
                     values: vec![
@@ -2606,12 +2600,10 @@ mod tests {
                         })),
                     ],
                     span: 56..75,
-                    type_: Type::Tup(vec![Type::Unknown]),
                 })),
                 Expr::Ident(Box::new(Ident {
                     name: "some_var".to_string(),
                     span: 76..84,
-                    type_: Type::Unknown
                 }))
             ]
         );
@@ -2654,11 +2646,9 @@ mod tests {
                                     type_: Type::Named("list".to_string())
                                 }))
                             ],
-                            type_: Type::Unknown,
                             span: 46..64
                         }))
                     ],
-                    type_: Type::Unknown,
                     span: 28..64
                 })),
                 Expr::StructInit(Box::new(StructInit {
@@ -2685,7 +2675,6 @@ mod tests {
                             value: Expr::Ident(Box::new(Ident {
                                 name: "stuff".to_string(),
                                 span: 101..106,
-                                type_: Type::Unknown
                             })),
                             span: 95..108
                         }
@@ -2706,18 +2695,15 @@ mod tests {
                     callee: Expr::Ident(Box::new(Ident {
                         name: "length".to_string(),
                         span: 31..37,
-                        type_: Type::Unknown
                     })),
                     arguments: vec![
                         Expr::StructFieldAccess(Box::new(StructFieldAccess {
                             source: "person".to_string(),
                             field: "name".to_string(),
                             span: 25..31,
-                            type_: Type::Unknown
                         }))
                     ],
                     span: 37..40,
-                    type_: Type::Unknown
                 }))
             ]
         );
@@ -2733,7 +2719,6 @@ mod tests {
                         module: "fmt".to_string(),
                         constant: "println".to_string(),
                         span: 22..32,
-                        type_: Type::Unknown
                     })),
                     arguments: vec![
                         Expr::Str(Box::new(StrLiteral {
@@ -2741,7 +2726,6 @@ mod tests {
                             span: 32..45
                         }))
                     ],
-                    type_: Type::Unknown,
                     span: 31..47
                 }))
             ]
@@ -2766,10 +2750,8 @@ mod tests {
                         Expr::Ident(Box::new(Ident {
                             name: "name".to_string(),
                             span: 38..42,
-                            type_: Type::Unknown
                         }))
                     ],
-                    type_: Type::Unknown,
                     span: 19..43
                 }))
             ]
@@ -2791,10 +2773,8 @@ mod tests {
                         Expr::Ident(Box::new(Ident {
                             name: "name".to_string(),
                             span: 37..41,
-                            type_: Type::Unknown
                         }))
                     ],
-                    type_: Type::Unknown,
                     span: 19..45
                 }))
             ]
@@ -2826,10 +2806,9 @@ mod tests {
                                     kind: BinaryOpKind::Sub,
                                     span: 26..27
                                 },
+                                type_: None,
                                 span: 24..29,
-                                type_: Type::Unknown
                             })),
-                            type_: Type::Unknown,
                             span: 23..32
                         })),
                         rhs: Expr::Int(Box::new(IntLiteral {
@@ -2840,15 +2819,15 @@ mod tests {
                             kind: BinaryOpKind::Div,
                             span: 31..32
                         },
+                        type_: None,
                         span: 23..34,
-                        type_: Type::Unknown
                     })),
                     operator: BinaryOp {
                         kind: BinaryOpKind::Add,
                         span: 21..22
                     },
+                    type_: None,
                     span: 19..34,
-                    type_: Type::Unknown
                 }))
             ],
         );
@@ -2866,7 +2845,7 @@ mod tests {
                         19..22
                     },
                     span: 19..28,
-                    type_: Type::Bool
+                    type_: Some(Type::Bool)
                 })),
                 Expr::Unary(Box::new(Unary {
                     rhs: Expr::Group(Box::new(Group {
@@ -2874,15 +2853,14 @@ mod tests {
                             value: -23,
                             span: 32..35
                         })),
-                        type_: Type::Int,
                         span: 31..37,
                     })),
                     operator: UnaryOp {
                         kind: UnaryOpKind::NegNum,
                         span: 30..31
                     },
+                    type_: None,
                     span: 30..37,
-                    type_: Type::Unknown
                 }))
             ]
         );
@@ -2906,24 +2884,22 @@ mod tests {
                     left: Expr::Ident(Box::new(Ident {
                         name: "a".to_string(),
                         span: 34..35,
-                        type_: Type::Unknown
                     })),
                     value: Expr::Int(Box::new(IntLiteral {
                         value: 123,
                         span: 38..41
                     })),
+                    type_: None,
                     span: 34..42,
-                    type_: Type::Unknown
                 })),
                 Expr::DefVar(Box::new(DefVar {
                     name: "b".to_string(),
                     value: Expr::Ident(Box::new(Ident {
                         name: "a".to_string(),
                         span: 51..52,
-                        type_: Type::Unknown
                     })),
                     span: 43..53,
-                    type_: Spanned(Type::Unknown, 51..52)
+                    type_: Spanned(Type::Named("b".to_string()), 47..48)
                 }))
             ]
         );
@@ -2938,13 +2914,11 @@ mod tests {
                     source: Expr::Ident(Box::new(Ident {
                         name: "list".to_string(),
                         span: 19..23,
-                        type_: Type::Unknown
                     })),
                     index: Expr::Int(Box::new(IntLiteral {
                         value: 0, span: 24..25
                     })),
                     span: 23..27,
-                    type_: Type::Unknown
                 })),
                 Expr::Index(Box::new(Index {
                     source: Expr::Tuple(Box::new(Tuple {
@@ -2957,12 +2931,11 @@ mod tests {
                             }))
                         ],
                         span: 28..36,
-                        type_: Type::Tup(vec![Type::Unknown])
                     })),
                     index: Expr::Binary(Box::new(Binary {
                         lhs: Expr::Ident(Box::new(Ident {
                             name: "idx".to_string(),
-                            span: 36..39, type_: Type::Unknown
+                            span: 36..39,
                         })),
                         rhs: Expr::Int(Box::new(IntLiteral {
                             value: 1,
@@ -2973,10 +2946,9 @@ mod tests {
                             span: 40..41
                         },
                         span: 36..43,
-                        type_: Type::Unknown,
+                        type_: None
                     })),
                     span: 35..45,
-                    type_: Type::Unknown
                 }))
             ]
         );
@@ -2998,7 +2970,6 @@ mod tests {
                     else_: vec![
                         Expr::Void(Box::new(Void { span: 46..50 }))
                     ],
-                    type_: Type::Unknown,
                     span: 19..55
                 }))
             ]
@@ -3018,7 +2989,6 @@ mod tests {
                     else_: vec![
                         Expr::Void(Box::new(Void { span: 45..49 }))
                     ],
-                    type_: Type::Unknown,
                     span: 19..52
                 }))
             ]
@@ -3041,10 +3011,9 @@ mod tests {
                             Expr::Void(Box::new(Void { span: 53..57 }))
                         ],
                         span: 27..58,
-                        type_: Type::Unknown
                     })),
                     span: 19..58,
-                    type_: Spanned(Type::Unknown, 27..58)
+                    type_: Spanned(Type::Named("a".to_string()), 23..24)
                 }))
             ]
         );
@@ -3190,7 +3159,6 @@ r#"func main() void {
                                 lhs: Expr::Ident(Box::new(Ident {
                                     name: "n".to_string(),
                                     span: 32..33,
-                                    type_: Type::Unknown
                                 })),
                                 rhs: Expr::Int(Box::new(IntLiteral {
                                     value: 3,
@@ -3201,13 +3169,12 @@ r#"func main() void {
                                     span: 34..35
                                 },
                                 span: 32..37,
-                                type_: Type::Unknown
+                                type_: None
                             })),
                             Expr::Binary(Box::new(Binary {
                                 lhs: Expr::Ident(Box::new(Ident {
                                     name: "n".to_string(),
                                     span: 39..40,
-                                    type_: Type::Unknown
                                 })),
                                 rhs: Expr::Int(Box::new(IntLiteral {
                                     value: 5,
@@ -3218,11 +3185,10 @@ r#"func main() void {
                                     span: 41..42
                                 },
                                 span: 39..44,
-                                type_: Type::Unknown
+                                type_: None
                             }))
                         ],
                         span: 30..46,
-                        type_: Type::Tup(vec![Type::Unknown])
                     })),
                     expressions: vec![
                         MatchCase {
@@ -3246,7 +3212,6 @@ r#"func main() void {
                                     span: 70..81
                                 }))
                             ],
-                            type_: Type::Unknown,
                             span: 57..82
                         },
                         MatchCase {
@@ -3267,7 +3232,6 @@ r#"func main() void {
                                     span: 104..110
                                 }))
                             ],
-                            type_: Type::Unknown,
                             span: 91..111
                         },
                         MatchCase {
@@ -3288,7 +3252,6 @@ r#"func main() void {
                                     span: 130..136
                                 }))
                             ],
-                            type_: Type::Unknown,
                             span: 120..140
                         },
                         MatchCase {
@@ -3299,24 +3262,19 @@ r#"func main() void {
                                     callee: Expr::Ident(Box::new(Ident {
                                         name: "to_str".to_string(),
                                         span: 155..161,
-                                        type_: Type::Unknown
                                     })),
                                     arguments: vec![
                                         Expr::Ident(Box::new(Ident {
                                             name: "n".to_string(),
                                             span: 153..154,
-                                            type_: Type::Unknown
                                         }))
                                     ],
-                                    type_: Type::Unknown,
                                     span: 161..164
                                 }))
                             ],
-                            type_: Type::Unknown,
                             span: 149..172
                         }
                     ],
-                    type_: Type::Unknown,
                     span: 23..174
                 })),
             ]
@@ -3333,7 +3291,6 @@ r#"func main() void {
                 Expr::Match(Box::new(Match {
                     expression: Expr::Void(Box::new(Void { span: 30..34 })),
                     expressions: vec![],
-                    type_: Type::Unknown,
                     span: 23..40
                 }))
             ]
@@ -3359,13 +3316,11 @@ r#"func main() void {
                             pattern: Pattern::Ident(Box::new(Ident {
                                 name: "n".to_string(),
                                 span: 46..47,
-                                type_: Type::Unknown
                             })),
                             guard: Some(Expr::Binary(Box::new(Binary {
                                 lhs: Expr::Ident(Box::new(Ident {
                                     name: "n".to_string(),
                                     span: 52..53,
-                                    type_: Type::Unknown
                                 })),
                                 rhs: Expr::Int(Box::new(IntLiteral {
                                     value: 0,
@@ -3376,12 +3331,11 @@ r#"func main() void {
                                     span: 54..56
                                 },
                                 span: 52..58,
-                                type_: Type::Bool
+                                type_: Some(Type::Bool)
                             }))),
                             body: vec![
                                 Expr::Void(Box::new(Void { span: 62..66 }))
                             ],
-                            type_: Type::Unknown,
                             span: 46..70
                         },
                         MatchCase {
@@ -3390,12 +3344,10 @@ r#"func main() void {
                                     Pattern::Ident(Box::new(Ident {
                                         name: "a".to_string(),
                                         span: 80..81,
-                                        type_: Type::Unknown
                                     })),
                                     Pattern::Ident(Box::new(Ident {
                                         name: "b".to_string(),
                                         span: 83..84,
-                                        type_: Type::Unknown
                                     }))
                                 ],
                                 span: 79..88
@@ -3404,28 +3356,24 @@ r#"func main() void {
                                 lhs: Expr::Ident(Box::new(Ident {
                                     name: "a".to_string(),
                                     span: 90..91,
-                                    type_: Type::Unknown
                                 })),
                                 rhs: Expr::Ident(Box::new(Ident {
                                     name: "b".to_string(),
                                     span: 95..96,
-                                    type_: Type::Unknown
                                 })),
                                 operator: BinaryOp {
                                     kind: BinaryOpKind::Eq,
                                     span: 92..94
                                 },
                                 span: 90..96,
-                                type_: Type::Bool
+                                type_: Some(Type::Bool)
                             }))),
                             body: vec![
                                 Expr::Void(Box::new(Void { span: 100..104 }))
                             ],
-                            type_: Type::Unknown,
                             span: 79..113
                         }
                     ],
-                    type_: Type::Unknown,
                     span: 23..115
                 })),
             ]
@@ -3508,11 +3456,9 @@ r#"func main() void {
                                     }))
                                 ],
                                 span: 153..160,
-                                type_: Type::List(Box::new(Type::Unknown))
                             }))
                         ],
                         span: 152..161,
-                        type_: Type::List(Box::new(Type::Unknown))
                     })),
                     type_: Spanned(Type::List(Box::new(Type::List(Box::new(Type::Int)))), 142..149),
                     span: 136..161
@@ -3533,14 +3479,12 @@ r#"func main() void {
                                     }))
                                 ],
                                 span: 196..204,
-                                type_: Type::Tup(vec![Type::Unknown])
                             })),
                             Expr::Str(Box::new(StrLiteral {
                                 value: "hello".to_string(),
                                 span: 205..212
                             }))
                         ],
-                        type_: Type::Tup(vec![Type::Unknown]),
                         span: 194..214
                     })),
                     type_: Spanned(Type::Tup(vec![Type::Tup(vec![Type::Int, Type::Int]), Type::Str]), 172..193),
