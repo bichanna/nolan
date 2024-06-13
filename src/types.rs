@@ -1,76 +1,78 @@
-use std::fmt::Display;
-use std::rc::Rc;
+use string_interner::symbol::SymbolU32;
+use string_interner::DefaultStringInterner;
 
-use crate::error::Spanned;
+use crate::error::Span;
 use crate::lexer::Token;
-
-pub type SpannedType = Spanned<Type>;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Type {
-    Int,                                      // int
-    Float,                                    // float
-    Str,                                      // str
-    Bool,                                     // bool
-    Void,                                     // void
-    List(Box<Type>),                          // []`Type`
-    Tup(Vec<Type>),                           // #(`Type`...)
-    Func(Vec<SpannedType>, Box<SpannedType>), // func(`Type`...) `Type`
-    Named(Rc<String>),
+    Int(Span),                        // int
+    Float(Span),                      // float
+    Str(Span),                        // str
+    Bool(Span),                       // bool
+    Void(Span),                       // void
+    List(Span, Box<Type>),            // []`Type`
+    Tup(Span, Vec<Type>),             // #(`Type`...)
+    Func(Span, Vec<Type>, Box<Type>), // func(`Type`...) `Type`
+    Named(Span, SymbolU32),
 }
 
-impl TryFrom<Token> for Type {
-    type Error = ();
+impl Type {
+    pub fn get_span(&self) -> &Span {
+        match self {
+            Self::Int(span) => span,
+            Self::Float(span) => span,
+            Self::Str(span) => span,
+            Self::Bool(span) => span,
+            Self::Void(span) => span,
+            Self::List(span, _) => span,
+            Self::Tup(span, _) => span,
+            Self::Func(span, _, _) => span,
+            Self::Named(span, _) => span,
+        }
+    }
 
-    fn try_from(value: Token) -> Result<Self, Self::Error> {
+    pub fn convert_from(value: Token, span: Span) -> Result<Self, ()> {
         match value {
-            Token::TInt => Ok(Type::Int),
-            Token::TFloat => Ok(Type::Float),
-            Token::TStr => Ok(Type::Str),
-            Token::TBool => Ok(Type::Bool),
-            Token::Void => Ok(Type::Void),
+            Token::TInt => Ok(Type::Int(span)),
+            Token::TFloat => Ok(Type::Float(span)),
+            Token::TStr => Ok(Type::Str(span)),
+            Token::TBool => Ok(Type::Bool(span)),
+            Token::Void => Ok(Type::Void(span)),
             _ => Err(()),
         }
     }
-}
 
-impl Display for Type {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let res = match self {
-            Type::Int => "int".to_string(),
-            Type::Float => "float".to_string(),
-            Type::Str => "str".to_string(),
-            Type::Bool => "bool".to_string(),
-            Type::Void => "void".to_string(),
-            Type::List(t) => format!("[]{t}"),
-            Type::Tup(ts) => format!(
+    pub fn display(&self, interner: &DefaultStringInterner) -> String {
+        match self {
+            Type::Int(_) => "int".to_string(),
+            Type::Float(_) => "float".to_string(),
+            Type::Str(_) => "str".to_string(),
+            Type::Bool(_) => "bool".to_string(),
+            Type::Void(_) => "void".to_string(),
+            Type::List(_, t) => format!("[]{}", t.display(interner)),
+            Type::Tup(_, ts) => format!(
                 "#({})",
                 ts.iter()
-                    .map(|t| t.to_string())
+                    .map(|t| t.display(interner))
                     .collect::<Vec<String>>()
                     .join(",")
             ),
-            Type::Func(args, rt) => format!(
+            Type::Func(_, args, rt) => format!(
                 "func({}){}",
                 args.iter()
-                    .map(|t| t.to_string())
+                    .map(|t| t.display(interner))
                     .collect::<Vec<String>>()
                     .join(","),
-                if let Type::Void = rt.0 {
+                if let Type::Void(_) = **rt {
                     "".to_string()
                 } else {
-                    format!(": {}", rt)
+                    format!(": {}", rt.display(interner))
                 }
             ),
-            Type::Named(name) => name.to_string(),
-        };
-
-        write!(f, "{}", res)
-    }
-}
-
-impl Display for SpannedType {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", self.0)
+            Type::Named(_, name) => {
+                interner.resolve(*name).unwrap().to_string()
+            }
+        }
     }
 }

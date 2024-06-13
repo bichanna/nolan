@@ -1,11 +1,10 @@
 use std::fmt::Debug;
-use std::rc::Rc;
 use string_interner::symbol::SymbolU32;
 use string_interner::DefaultStringInterner;
 
 use crate::error::{combine, SourcePath, Span, Spanned};
 use crate::lexer::Token;
-use crate::types::{SpannedType, Type};
+use crate::types::Type;
 
 pub trait Node {
     fn get_span(&self) -> &Span;
@@ -16,6 +15,7 @@ pub trait Node {
 pub struct IntLiteral {
     pub value: i64,
     pub span: Span,
+    pub type_: Type,
 }
 
 impl Node for IntLiteral {
@@ -24,7 +24,7 @@ impl Node for IntLiteral {
     }
 
     fn get_type(&self) -> Option<&Type> {
-        Some(&Type::Int)
+        Some(&self.type_)
     }
 }
 
@@ -32,6 +32,7 @@ impl Node for IntLiteral {
 pub struct FloatLiteral {
     pub value: f64,
     pub span: Span,
+    pub type_: Type,
 }
 
 impl Node for FloatLiteral {
@@ -40,7 +41,7 @@ impl Node for FloatLiteral {
     }
 
     fn get_type(&self) -> Option<&Type> {
-        Some(&Type::Float)
+        Some(&self.type_)
     }
 }
 
@@ -48,6 +49,7 @@ impl Node for FloatLiteral {
 pub struct StrLiteral {
     pub value: SymbolU32,
     pub span: Span,
+    pub type_: Type,
 }
 
 impl Node for StrLiteral {
@@ -56,7 +58,7 @@ impl Node for StrLiteral {
     }
 
     fn get_type(&self) -> Option<&Type> {
-        Some(&Type::Str)
+        Some(&self.type_)
     }
 }
 
@@ -64,6 +66,7 @@ impl Node for StrLiteral {
 pub struct BoolLiteral {
     pub value: bool,
     pub span: Span,
+    pub type_: Type,
 }
 
 impl Node for BoolLiteral {
@@ -72,7 +75,7 @@ impl Node for BoolLiteral {
     }
 
     fn get_type(&self) -> Option<&Type> {
-        Some(&Type::Bool)
+        Some(&self.type_)
     }
 }
 
@@ -179,7 +182,7 @@ impl Node for ModAccess {
 #[derive(Debug, Clone, PartialEq)]
 pub struct EnumVarDef {
     pub name: SymbolU32,
-    pub types: Vec<SpannedType>,
+    pub types: Vec<Type>,
     pub span: Span,
 }
 
@@ -220,7 +223,7 @@ impl Node for Call {
 #[derive(Debug, Clone, PartialEq)]
 pub struct StructFieldDef {
     pub name: SymbolU32,
-    pub type_: SpannedType,
+    pub type_: Type,
     pub span: Span,
 }
 
@@ -275,16 +278,12 @@ pub struct Module {
 }
 
 impl Module {
-    pub fn new(
-        name: Rc<String>,
-        interner: &mut DefaultStringInterner,
-        path: SourcePath,
-    ) -> Self {
+    pub fn new(name: SymbolU32, path: SourcePath, span: Span) -> Self {
         Self {
-            name: interner.get_or_intern(name.as_ref()),
+            name: name.clone(),
             path,
             expressions: vec![],
-            type_: Type::Named(name),
+            type_: Type::Named(span, name),
         }
     }
 }
@@ -302,14 +301,14 @@ impl Node for Module {
 #[derive(Debug, Clone, PartialEq)]
 pub struct FuncParam {
     pub name: SymbolU32,
-    pub type_: SpannedType,
+    pub type_: Type,
     pub span: Span,
 }
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Closure {
     pub parameters: Vec<FuncParam>,
-    pub return_type: SpannedType,
+    pub return_type: Type,
     pub body: Vec<Expr>,
     pub span: Span,
 }
@@ -494,6 +493,7 @@ pub struct When {
     pub then: Vec<Expr>,
     pub else_: Option<Vec<Expr>>,
     pub span: Span,
+    pub type_: Type,
 }
 
 impl Node for When {
@@ -502,7 +502,7 @@ impl Node for When {
     }
 
     fn get_type(&self) -> Option<&Type> {
-        Some(&Type::Void)
+        Some(&self.type_)
     }
 }
 
@@ -532,7 +532,7 @@ impl Node for AssignVar {
 pub struct DefVar {
     pub name: SymbolU32,
     pub value: Expr,
-    pub type_: SpannedType,
+    pub type_: Type,
     pub span: Span,
 }
 
@@ -542,7 +542,7 @@ impl Node for DefVar {
     }
 
     fn get_type(&self) -> Option<&Type> {
-        Some(&self.type_.0)
+        Some(&self.type_)
     }
 }
 
@@ -568,6 +568,7 @@ pub struct Use {
     pub module: SymbolU32,
     pub imports: Option<Vec<SymbolU32>>,
     pub span: Span,
+    pub type_: Type,
 }
 
 impl Node for Use {
@@ -576,7 +577,7 @@ impl Node for Use {
     }
 
     fn get_type(&self) -> Option<&Type> {
-        Some(&Type::Void)
+        Some(&self.type_)
     }
 }
 
@@ -584,6 +585,7 @@ impl Node for Use {
 pub struct Export {
     pub symbols: Vec<Spanned<SymbolU32>>,
     pub span: Span,
+    pub type_: Type,
 }
 
 impl Node for Export {
@@ -592,7 +594,7 @@ impl Node for Export {
     }
 
     fn get_type(&self) -> Option<&Type> {
-        Some(&Type::Void)
+        Some(&self.type_)
     }
 }
 
@@ -601,6 +603,7 @@ pub struct While {
     pub condition: Expr,
     pub body: Vec<Expr>,
     pub span: Span,
+    pub type_: Type,
 }
 
 impl Node for While {
@@ -609,13 +612,14 @@ impl Node for While {
     }
 
     fn get_type(&self) -> Option<&Type> {
-        Some(&Type::Void)
+        Some(&self.type_)
     }
 }
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Break {
     pub span: Span,
+    pub type_: Type,
 }
 
 impl Node for Break {
@@ -624,7 +628,7 @@ impl Node for Break {
     }
 
     fn get_type(&self) -> Option<&Type> {
-        Some(&Type::Void)
+        Some(&self.type_)
     }
 }
 
@@ -732,6 +736,7 @@ impl Node for Match {
 #[derive(Debug, Clone, PartialEq)]
 pub struct Void {
     pub span: Span,
+    pub type_: Type,
 }
 
 impl Node for Void {
@@ -740,7 +745,7 @@ impl Node for Void {
     }
 
     fn get_type(&self) -> Option<&Type> {
-        Some(&Type::Void)
+        Some(&self.type_)
     }
 }
 

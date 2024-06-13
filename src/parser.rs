@@ -7,7 +7,7 @@ use crate::ast::*;
 use crate::error::{combine, LexError, ParseError, ParseErrorKind, Span};
 use crate::error::{SourcePath, Spanned};
 use crate::lexer::Token;
-use crate::types::{SpannedType, Type};
+use crate::types::Type;
 
 type ParseResult<T> = Result<T, ParseError>;
 
@@ -69,6 +69,8 @@ pub fn parse(
 
     let current = lexer.next();
 
+    let module_name = interner.get_or_intern(module_name);
+
     if let Some(ref current) = current {
         if let Err(err) = current {
             return Err(vec![Spanned(
@@ -77,16 +79,16 @@ pub fn parse(
             )]);
         }
     } else {
-        return Ok(Module::new(module_name.into(), interner, source));
+        return Ok(Module::new(module_name.clone(), source, 0..0));
     }
 
     let exprs = Parser::new(lexer, interner, current.unwrap()).parse();
 
     Ok(Module {
-        name: interner.get_or_intern(module_name.clone()),
+        name: module_name,
         path: source,
         expressions: exprs?,
-        type_: Type::Named(module_name.into()),
+        type_: Type::Named(0..0, module_name),
     })
 }
 
@@ -195,7 +197,7 @@ impl<'a> Parser<'a> {
         }
     }
 
-    fn parse_list_type(&mut self) -> ParseResult<SpannedType> {
+    fn parse_list_type(&mut self) -> ParseResult<Type> {
         let span = self.lexer.span();
 
         expect!(self.current()?, Token::LeftBrak, span, "expected '['");
@@ -213,13 +215,13 @@ impl<'a> Parser<'a> {
 
         let inner_type = self.parse_type()?;
 
-        Ok(Spanned(
-            Type::List(Box::new(inner_type.0.clone())),
-            combine(&span, &inner_type.1),
+        Ok(Type::List(
+            combine(&span, inner_type.get_span()),
+            Box::new(inner_type.clone()),
         ))
     }
 
-    fn parse_tuple_type(&mut self) -> ParseResult<SpannedType> {
+    fn parse_tuple_type(&mut self) -> ParseResult<Type> {
         let span = self.lexer.span();
 
         expect!(self.current()?, Token::Hash, span, "expected '#'");
@@ -232,7 +234,7 @@ impl<'a> Parser<'a> {
 
         let mut types = Vec::<Type>::new();
         while !matches!(self.current, Ok(Token::RightParen)) {
-            types.push(self.parse_type()?.0);
+            types.push(self.parse_type()?);
 
             if !matches!(self.current, Ok(Token::Comma)) {
                 break;
@@ -250,10 +252,10 @@ impl<'a> Parser<'a> {
 
         self.next();
 
-        Ok(Spanned(Type::Tup(types), combine(&span, &self.lexer.span())))
+        Ok(Type::Tup(combine(&span, &self.lexer.span()), types))
     }
 
-    fn parse_func_type(&mut self) -> ParseResult<SpannedType> {
+    fn parse_func_type(&mut self) -> ParseResult<Type> {
         let span = self.lexer.span();
 
         expect!(self.current()?, Token::Func, span, "expected 'func'");
@@ -269,7 +271,7 @@ impl<'a> Parser<'a> {
 
         self.next();
 
-        let mut args = Vec::<SpannedType>::new();
+        let mut args = Vec::<Type>::new();
         while !matches!(self.current, Ok(Token::RightParen)) {
             args.push(self.parse_type()?);
 
@@ -291,22 +293,19 @@ impl<'a> Parser<'a> {
 
         let return_type = if matches!(self.current, Ok(Token::Void)) {
             let span = self.lexer.span();
-            let t = Type::try_from(self.current()?.clone()).unwrap();
+            let t = Type::convert_from(self.current()?.clone(), span).unwrap();
             self.next();
-            Spanned(t, span)
+            t
         } else {
             self.parse_type()?
         };
 
         let end_span = self.lexer.span();
 
-        Ok(Spanned(
-            Type::Func(args, Box::new(return_type)),
-            combine(&span, &end_span),
-        ))
+        Ok(Type::Func(combine(&span, &end_span), args, Box::new(return_type)))
     }
 
-    fn parse_type(&mut self) -> ParseResult<SpannedType> {
+    fn parse_type(&mut self) -> ParseResult<Type> {
         match self.current()? {
             Token::LeftBrak => self.parse_list_type(),
             Token::Hash => self.parse_tuple_type(),
@@ -314,9 +313,9 @@ impl<'a> Parser<'a> {
             _ => {
                 let current = self.current()?.clone();
                 let span = self.lexer.span();
-                if let Ok(t) = Type::try_from(current) {
+                if let Ok(t) = Type::convert_from(current, span.clone()) {
                     self.next();
-                    Ok(Spanned(t, span))
+                    Ok(t)
                 } else {
                     throw_error!(span, "invalid type information")
                 }
@@ -340,7 +339,7 @@ impl<'a> Parser<'a> {
 
         self.next();
 
-        let mut types = Vec::<SpannedType>::new();
+        let mut types = Vec::<Type>::new();
 
         if matches!(self.current, Ok(Token::LeftParen)) {
             self.next();
@@ -744,6 +743,7 @@ impl<'a> Parser<'a> {
             module: mod_name,
             imports: import_symbols,
             span: combine(&span, &self.lexer.span()),
+            type_: Type::Void(span),
         })))
     }
 
@@ -872,9 +872,9 @@ impl<'a> Parser<'a> {
 
             expr = Expr::binary(
                 expr,
-                BinaryOp { kind: BinaryOpKind::Or, span },
+                BinaryOp { kind: BinaryOpKind::Or, span: span.clone() },
                 self.parse_and()?,
-                Some(Type::Bool),
+                Some(Type::Bool(span)),
             )
         }
 
@@ -891,9 +891,9 @@ impl<'a> Parser<'a> {
 
             expr = Expr::binary(
                 expr,
-                BinaryOp { kind: BinaryOpKind::And, span },
+                BinaryOp { kind: BinaryOpKind::And, span: span.clone() },
                 self.parse_eq()?,
-                Some(Type::Bool),
+                Some(Type::Bool(span)),
             )
         }
 
@@ -906,7 +906,7 @@ impl<'a> Parser<'a> {
         while matches!(self.current, Ok(Token::NotEq) | Ok(Token::DEq)) {
             let span = self.lexer.span();
             let bin_op_kind = BinaryOpKind::from(self.current()?);
-            let bin_op = BinaryOp { kind: bin_op_kind, span };
+            let bin_op = BinaryOp { kind: bin_op_kind, span: span.clone() };
 
             self.next();
 
@@ -914,7 +914,7 @@ impl<'a> Parser<'a> {
                 expr,
                 bin_op,
                 self.parse_compare()?,
-                Some(Type::Bool),
+                Some(Type::Bool(span)),
             );
         }
 
@@ -930,7 +930,7 @@ impl<'a> Parser<'a> {
         ) {
             let span = self.lexer.span();
             let bin_op_kind = BinaryOpKind::from(self.current()?);
-            let bin_op = BinaryOp { kind: bin_op_kind, span };
+            let bin_op = BinaryOp { kind: bin_op_kind, span: span.clone() };
 
             self.next();
 
@@ -938,7 +938,7 @@ impl<'a> Parser<'a> {
                 expr,
                 bin_op,
                 self.parse_term()?,
-                Some(Type::Bool),
+                Some(Type::Bool(span)),
             );
         }
 
@@ -985,9 +985,9 @@ impl<'a> Parser<'a> {
         {
             let span = self.lexer.span();
             let unary_op_kind = UnaryOpKind::from(self.current()?);
-            let unary_op = UnaryOp { kind: unary_op_kind, span };
+            let unary_op = UnaryOp { kind: unary_op_kind, span: span.clone() };
             let type_ = if let UnaryOpKind::NegBool = unary_op_kind {
-                Some(Type::Bool)
+                Some(Type::Bool(span))
             } else {
                 None
             };
@@ -1201,13 +1201,13 @@ impl<'a> Parser<'a> {
 
         self.next();
 
+        let span = combine(&span, &self.lexer.span());
+
         Ok(Expr::EnumVarAccess(Box::new(EnumVarAccess {
             source,
             variant,
-            span: combine(&span, &self.lexer.span()),
-            type_: Type::Named(
-                self.interner.resolve(source).unwrap().to_string().into(),
-            ),
+            span: span.clone(),
+            type_: Type::Named(span, source),
         })))
     }
 
@@ -1256,9 +1256,7 @@ impl<'a> Parser<'a> {
         Ok(Expr::StructInit(Box::new(StructInit {
             name: struct_name,
             arguments: init_args,
-            type_: Type::Named(
-                self.interner.resolve(struct_name).unwrap().to_string().into(),
-            ),
+            type_: Type::Named(span.clone(), struct_name),
             span: combine(&span, &self.lexer.span()),
         })))
     }
@@ -1386,28 +1384,48 @@ impl<'a> Parser<'a> {
         match self.current {
             Ok(Token::True) => {
                 self.next();
-                Ok(Expr::Bool(Box::new(BoolLiteral { value: true, span })))
+                Ok(Expr::Bool(Box::new(BoolLiteral {
+                    value: true,
+                    span: span.clone(),
+                    type_: Type::Bool(span),
+                })))
             }
 
             Ok(Token::False) => {
                 self.next();
-                Ok(Expr::Bool(Box::new(BoolLiteral { value: false, span })))
+                Ok(Expr::Bool(Box::new(BoolLiteral {
+                    value: false,
+                    span: span.clone(),
+                    type_: Type::Bool(span),
+                })))
             }
 
             Ok(Token::Int(value)) => {
                 self.next();
-                Ok(Expr::Int(Box::new(IntLiteral { value, span })))
+                Ok(Expr::Int(Box::new(IntLiteral {
+                    value,
+                    span: span.clone(),
+                    type_: Type::Int(span),
+                })))
             }
 
             Ok(Token::Float(value)) => {
                 self.next();
-                Ok(Expr::Float(Box::new(FloatLiteral { value, span })))
+                Ok(Expr::Float(Box::new(FloatLiteral {
+                    value,
+                    span: span.clone(),
+                    type_: Type::Float(span),
+                })))
             }
 
             Ok(Token::Str(ref value)) => {
                 let value = self.interner.get_or_intern(value);
                 self.next();
-                Ok(Expr::Str(Box::new(StrLiteral { value, span })))
+                Ok(Expr::Str(Box::new(StrLiteral {
+                    value,
+                    span: span.clone(),
+                    type_: Type::Str(span),
+                })))
             }
 
             Ok(Token::LeftBrak) => self.parse_list_literal(),
@@ -1434,7 +1452,10 @@ impl<'a> Parser<'a> {
 
             Ok(Token::Void) => {
                 self.next();
-                Ok(Expr::Void(Box::new(Void { span })))
+                Ok(Expr::Void(Box::new(Void {
+                    span: span.clone(),
+                    type_: Type::Void(span),
+                })))
             }
 
             Err(ref err) => {
@@ -1571,28 +1592,48 @@ impl<'a> Parser<'a> {
         let mut pattern = match self.current()?.clone() {
             Token::Int(value) => {
                 self.next();
-                Pattern::Int(Box::new(IntLiteral { value, span }))
+                Pattern::Int(Box::new(IntLiteral {
+                    value,
+                    span: span.clone(),
+                    type_: Type::Int(span),
+                }))
             }
 
             Token::Float(value) => {
                 self.next();
-                Pattern::Float(Box::new(FloatLiteral { value, span }))
+                Pattern::Float(Box::new(FloatLiteral {
+                    value,
+                    span: span.clone(),
+                    type_: Type::Float(span),
+                }))
             }
 
             Token::Str(value) => {
                 self.next();
                 let value = self.interner.get_or_intern(value);
-                Pattern::Str(Box::new(StrLiteral { value, span }))
+                Pattern::Str(Box::new(StrLiteral {
+                    value,
+                    span: span.clone(),
+                    type_: Type::Str(span),
+                }))
             }
 
             Token::True => {
                 self.next();
-                Pattern::Bool(Box::new(BoolLiteral { value: true, span }))
+                Pattern::Bool(Box::new(BoolLiteral {
+                    value: true,
+                    span: span.clone(),
+                    type_: Type::Bool(span),
+                }))
             }
 
             Token::False => {
                 self.next();
-                Pattern::Bool(Box::new(BoolLiteral { value: false, span }))
+                Pattern::Bool(Box::new(BoolLiteral {
+                    value: false,
+                    span: span.clone(),
+                    type_: Type::Bool(span),
+                }))
             }
 
             Token::Underscore => {
@@ -1727,11 +1768,14 @@ impl<'a> Parser<'a> {
 
         self.next();
 
+        let span = combine(&span, &self.lexer.span());
+        let source = self.interner.get_or_intern(ident);
+
         let enum_var_access = EnumVarAccess {
-            source: self.interner.get_or_intern(ident.clone()),
+            source: source.clone(),
             variant,
-            type_: Type::Named(ident.into()),
-            span: combine(&span, &self.lexer.span()),
+            type_: Type::Named(span.clone(), source),
+            span: span.clone(),
         };
 
         if matches!(self.current, Ok(Token::LeftParen)) {
@@ -1888,7 +1932,10 @@ impl<'a> Parser<'a> {
 
         self.next();
 
-        Ok(Expr::Break(Box::new(Break { span })))
+        Ok(Expr::Break(Box::new(Break {
+            span: span.clone(),
+            type_: Type::Void(span),
+        })))
     }
 
     fn parse_let(&mut self) -> ParseResult<Expr> {
@@ -1921,12 +1968,7 @@ impl<'a> Parser<'a> {
         let type_ = if !matches!(self.current, Ok(Token::Eq)) {
             self.parse_type()?
         } else {
-            Spanned(
-                Type::Named(
-                    self.interner.resolve(name).unwrap().to_string().into(),
-                ),
-                ident_span,
-            )
+            Type::Named(ident_span, name)
         };
 
         expect!(self.current()?, Token::Eq, self.lexer.span(), "expected '='");
@@ -1977,10 +2019,13 @@ impl<'a> Parser<'a> {
 
         let body = self.parse_curly_body()?;
 
+        let span = combine(&span, &self.lexer.span());
+
         Ok(Expr::While(Box::new(While {
             condition: cond,
             body,
-            span: combine(&span, &self.lexer.span()),
+            span: span.clone(),
+            type_: Type::Void(span),
         })))
     }
 
@@ -2034,11 +2079,14 @@ impl<'a> Parser<'a> {
             None
         };
 
+        let span = combine(&span, &self.lexer.span());
+
         Ok(Expr::When(Box::new(When {
             condition: cond,
             then: then_body,
             else_: else_body,
-            span: combine(&span, &self.lexer.span()),
+            span: span.clone(),
+            type_: Type::Void(span),
         })))
     }
 
@@ -2361,7 +2409,8 @@ mod tests {
             expected: TopLevelExpr::Use(Box::new(Use {
                 module: interner.get_or_intern("fmt"),
                 imports: None,
-                span: 0..8
+                span: 0..8,
+                type_: Type::Void(0..3)
             }))
         );
 
@@ -2380,7 +2429,8 @@ mod tests {
             expected: TopLevelExpr::Use(Box::new(Use {
                 module: interner.get_or_intern("fmt"),
                 imports: Some(vec![interner.get_or_intern("println"), interner.get_or_intern("print")]),
-                span: 0..25
+                span: 0..25,
+                type_: Type::Void(0..3)
             })),
         );
 
@@ -2389,7 +2439,8 @@ mod tests {
             expected: TopLevelExpr::Use(Box::new(Use {
                 module: interner.get_or_intern("fmt"),
                 imports: Some(vec![]),
-                span: 0..11
+                span: 0..11,
+                type_: Type::Void(0..3)
             }))
         );
 
@@ -2427,7 +2478,7 @@ mod tests {
                 variants: vec![
                     EnumVarDef {
                         name: interner.get_or_intern("Some"),
-                        types: vec![Spanned(Type::Int, 23..26)],
+                        types: vec![Type::Int(23..26)],
                         span: 18..28
                     },
                     EnumVarDef {
@@ -2479,12 +2530,12 @@ mod tests {
                 fields: vec![
                     StructFieldDef {
                         name: interner.get_or_intern("name"),
-                        type_: Spanned(Type::Str, 21..24),
+                        type_: Type::Str(21..24),
                         span: 16..25
                     },
                     StructFieldDef {
                         name: interner.get_or_intern("age"),
-                        type_: Spanned(Type::Int, 30..33),
+                        type_: Type::Int(30..33),
                         span: 26..35
                     }
                 ],
@@ -2524,11 +2575,11 @@ mod tests {
                     parameters: vec![
                         FuncParam {
                             name: interner.get_or_intern("args"),
-                            type_: Spanned(Type::List(Box::new(Type::Str)), 15..20),
+                            type_: Type::List(15..20, Box::new(Type::Str(17..20))),
                             span: 10..21
                         }
                     ],
-                    return_type: Spanned(Type::Void, 22..26),
+                    return_type: Type::Void(22..26),
                     body: vec![],
                     span: 0..29,
                 },
@@ -2544,9 +2595,12 @@ mod tests {
                 name: interner.get_or_intern("main"),
                 closure: Closure {
                     parameters: vec![],
-                    return_type: Spanned(Type::Void, 12..16),
+                    return_type: Type::Void(12..16),
                     body: vec![
-                        Expr::Void(Box::new(Void { span: 20..24 }))
+                        Expr::Void(Box::new(Void {
+                            span: 20..24,
+                            type_: Type::Void(20..24)
+                        }))
                     ],
                     span: 0..25
                 },
@@ -2592,33 +2646,40 @@ mod tests {
             expected: vec![
                 Expr::Int(Box::new(IntLiteral {
                     value: 123,
-                    span: 19..22
+                    span: 19..22,
+                    type_: Type::Int(19..22)
                 })),
                 Expr::Float(Box::new(FloatLiteral {
                     value: 1.23,
-                    span: 24..28
+                    span: 24..28,
+                    type_: Type::Float(24..28)
                 })),
                 Expr::Str(Box::new(StrLiteral {
                     value: interner.get_or_intern("Bello"),
-                    span: 30..37
+                    span: 30..37,
+                    type_: Type::Str(30..37)
                 })),
                 Expr::Bool(Box::new(BoolLiteral {
                     value: true,
-                    span: 39..43
+                    span: 39..43,
+                    type_: Type::Bool(39..43)
                 })),
                 Expr::List(Box::new(List {
                     elements: vec![
                         Expr::Int(Box::new(IntLiteral {
                             value: 1,
-                            span: 46..47
+                            span: 46..47,
+                            type_: Type::Int(46..47)
                         })),
                         Expr::Int(Box::new(IntLiteral {
                             value: 2,
-                            span: 49..50
+                            span: 49..50,
+                            type_: Type::Int(49..50)
                         })),
                         Expr::Int(Box::new(IntLiteral {
                             value: 3,
-                            span: 52..53
+                            span: 52..53,
+                            type_: Type::Int(52..53)
                         })),
                     ],
                     span: 45..55,
@@ -2627,15 +2688,18 @@ mod tests {
                     values: vec![
                         Expr::Str(Box::new(StrLiteral {
                             value: interner.get_or_intern("bello"),
-                            span: 58..65
+                            span: 58..65,
+                            type_: Type::Str(58..65)
                         })),
                         Expr::Float(Box::new(FloatLiteral {
                             value: 2.2,
-                            span: 67..70
+                            span: 67..70,
+                            type_: Type::Float(67..70)
                         })),
                         Expr::Int(Box::new(IntLiteral {
                             value: 3,
-                            span: 72..73
+                            span: 72..73,
+                            type_: Type::Int(72..73)
                         })),
                     ],
                     span: 56..75,
@@ -2662,30 +2726,32 @@ mod tests {
                         source: interner.get_or_intern("list"),
                         variant: interner.get_or_intern("Cons"),
                         span: 23..29,
-                        type_: Type::Named("list".to_string().into())
+                        type_: Type::Named(23..29, interner.get_or_intern("list"))
                     })),
                     arguments: vec![
                         Expr::Int(Box::new(IntLiteral {
                             value: 123,
-                            span: 29..32
+                            span: 29..32,
+                            type_: Type::Int(29..32)
                         })),
                         Expr::Call(Box::new(Call {
                             callee: Expr::EnumVarAccess(Box::new(EnumVarAccess {
                                 source: interner.get_or_intern("list"),
                                 variant: interner.get_or_intern("Cons"),
                                 span: 41..47,
-                                type_: Type::Named("list".to_string().into())
+                                type_: Type::Named(41..47, interner.get_or_intern("list"))
                             })),
                             arguments: vec![
                                 Expr::Int(Box::new(IntLiteral {
                                     value: 321,
-                                    span: 47..50
+                                    span: 47..50,
+                                    type_: Type::Int(47..50)
                                 })),
                                 Expr::EnumVarAccess(Box::new(EnumVarAccess {
                                     source: interner.get_or_intern("list"),
                                     variant: interner.get_or_intern("Nil"),
                                     span: 59..64,
-                                    type_: Type::Named("list".to_string().into())
+                                    type_: Type::Named(59..64, interner.get_or_intern("list"))
                                 }))
                             ],
                             span: 46..64
@@ -2700,7 +2766,8 @@ mod tests {
                             name: interner.get_or_intern("age"),
                             value: Expr::Int(Box::new(IntLiteral {
                                 value: 18,
-                                span: 78..80
+                                span: 78..80,
+                                type_: Type::Int(78..80)
                             })),
                             span: 74..81
                         },
@@ -2708,7 +2775,8 @@ mod tests {
                             name: interner.get_or_intern("name"),
                             value: Expr::Str(Box::new(StrLiteral {
                                 value: interner.get_or_intern("Nobu"),
-                                span: 87..93
+                                span: 87..93,
+                                type_: Type::Str(87..93)
                             })),
                             span: 82..94
                         },
@@ -2721,7 +2789,7 @@ mod tests {
                             span: 95..108
                         }
                     ],
-                    type_: Type::Named("Person".to_string().into()),
+                    type_: Type::Named(72..73, interner.get_or_intern("Person")),
                     span: 72..109
                 }))
             ]
@@ -2769,7 +2837,8 @@ mod tests {
                     arguments: vec![
                         Expr::Str(Box::new(StrLiteral {
                             value: interner.get_or_intern("Hello World"),
-                            span: 32..45
+                            span: 32..45,
+                            type_: Type::Str(32..45)
                         }))
                     ],
                     span: 31..47
@@ -2789,11 +2858,11 @@ mod tests {
                     parameters: vec![
                         FuncParam {
                             name: interner.get_or_intern("name"),
-                            type_: Spanned(Type::Str, 26..29),
+                            type_: Type::Str(26..29),
                             span: 21..30
                         }
                     ],
-                    return_type: Spanned(Type::Str, 31..34),
+                    return_type: Type::Str(31..34),
                     body: vec![
                         Expr::Ident(Box::new(Ident {
                             name: interner.get_or_intern("name"),
@@ -2812,11 +2881,11 @@ mod tests {
                     parameters: vec![
                         FuncParam {
                             name: interner.get_or_intern("name"),
-                            type_: Spanned(Type::Str, 26..29),
+                            type_: Type::Str(26..29),
                             span: 21..30
                         }
                     ],
-                    return_type: Spanned(Type::Str, 31..34),
+                    return_type: Type::Str(31..34),
                     body: vec![
                         Expr::Ident(Box::new(Ident {
                             name: interner.get_or_intern("name"),
@@ -2839,18 +2908,21 @@ mod tests {
                 Expr::Binary(Box::new(Binary {
                     lhs: Expr::Int(Box::new(IntLiteral {
                         value: 1,
-                        span: 19..20
+                        span: 19..20,
+                        type_: Type::Int(19..20)
                     })),
                     rhs: Expr::Binary(Box::new(Binary {
                         lhs: Expr::Group(Box::new(Group {
                             expression: Expr::Binary(Box::new(Binary {
                                 lhs: Expr::Int(Box::new(IntLiteral {
                                     value: 1,
-                                    span: 24..25
+                                    span: 24..25,
+                                    type_: Type::Int(24..25)
                                 })),
                                 rhs: Expr::Int(Box::new(IntLiteral {
                                     value: 1,
-                                    span: 28..29
+                                    span: 28..29,
+                                    type_: Type::Int(28..29)
                                 })),
                                 operator: BinaryOp {
                                     kind: BinaryOpKind::Sub,
@@ -2863,7 +2935,8 @@ mod tests {
                         })),
                         rhs: Expr::Int(Box::new(IntLiteral {
                             value: 1,
-                            span: 33..34
+                            span: 33..34,
+                            type_: Type::Int(33..34)
                         })),
                         operator: BinaryOp {
                             kind: BinaryOpKind::Div,
@@ -2888,20 +2961,22 @@ mod tests {
                 Expr::Unary(Box::new(Unary {
                     rhs: Expr::Bool(Box::new(BoolLiteral {
                         value: false,
-                        span: 23..28
+                        span: 23..28,
+                        type_: Type::Bool(23..28)
                     })),
                     operator: UnaryOp {
                         kind: UnaryOpKind::NegBool, span:
                         19..22
                     },
                     span: 19..28,
-                    type_: Some(Type::Bool)
+                    type_: Some(Type::Bool(19..22))
                 })),
                 Expr::Unary(Box::new(Unary {
                     rhs: Expr::Group(Box::new(Group {
                         expression: Expr::Int(Box::new(IntLiteral {
                             value: -23,
-                            span: 32..35
+                            span: 32..35,
+                            type_: Type::Int(32..35)
                         })),
                         span: 31..37,
                     })),
@@ -2927,10 +3002,11 @@ mod tests {
                     name: interner.get_or_intern("a"),
                     value: Expr::Int(Box::new(IntLiteral {
                         value: 0,
-                        span: 31..32
+                        span: 31..32,
+                        type_: Type::Int(31..32)
                     })),
                     span: 19..33,
-                    type_: Spanned(Type::Int, 25..28)
+                    type_: Type::Int(25..28)
                 })),
                 Expr::AssignVar(Box::new(AssignVar {
                     left: Expr::Ident(Box::new(Ident {
@@ -2939,7 +3015,8 @@ mod tests {
                     })),
                     value: Expr::Int(Box::new(IntLiteral {
                         value: 123,
-                        span: 38..41
+                        span: 38..41,
+                        type_: Type::Int(38..41)
                     })),
                     type_: None,
                     span: 34..42,
@@ -2951,7 +3028,7 @@ mod tests {
                         span: 51..52,
                     })),
                     span: 43..53,
-                    type_: Spanned(Type::Named("b".to_string().into()), 47..48)
+                    type_: Type::Named(47..48, interner.get_or_intern("b"))
                 }))
             ]
         );
@@ -2970,7 +3047,9 @@ mod tests {
                         span: 19..23,
                     })),
                     index: Expr::Int(Box::new(IntLiteral {
-                        value: 0, span: 24..25
+                        value: 0,
+                        span: 24..25,
+                        type_: Type::Int(24..25)
                     })),
                     span: 23..27,
                 })),
@@ -2978,10 +3057,14 @@ mod tests {
                     source: Expr::Tuple(Box::new(Tuple {
                         values: vec![
                             Expr::Int(Box::new(IntLiteral {
-                                value: 1, span: 30..31
+                                value: 1,
+                                span: 30..31,
+                                type_: Type::Int(30..31)
                             })),
                             Expr::Int(Box::new(IntLiteral {
-                                value: 2, span: 33..34
+                                value: 2,
+                                span: 33..34,
+                                type_: Type::Int(33..34)
                             }))
                         ],
                         span: 28..36,
@@ -2993,7 +3076,8 @@ mod tests {
                         })),
                         rhs: Expr::Int(Box::new(IntLiteral {
                             value: 1,
-                            span: 42..43
+                            span: 42..43,
+                            type_: Type::Int(42..43)
                         })),
                         operator: BinaryOp {
                             kind: BinaryOpKind::Add,
@@ -3018,13 +3102,20 @@ mod tests {
                 Expr::If(Box::new(If {
                     condition: Expr::Bool(Box::new(BoolLiteral {
                         value: true,
-                        span: 23..27
+                        span: 23..27,
+                        type_: Type::Bool(23..27)
                     })),
                     then: vec![
-                        Expr::Void(Box::new(Void { span: 31..35 }))
+                        Expr::Void(Box::new(Void {
+                            span: 31..35,
+                            type_: Type::Void(31..35)
+                        }))
                     ],
                     else_: vec![
-                        Expr::Void(Box::new(Void { span: 46..50 }))
+                        Expr::Void(Box::new(Void {
+                            span: 46..50,
+                            type_: Type::Void(46..50)
+                        }))
                     ],
                     span: 19..55
                 }))
@@ -3037,13 +3128,20 @@ mod tests {
                 Expr::If(Box::new(If {
                     condition: Expr::Bool(Box::new(BoolLiteral {
                         value: true,
-                        span: 23..27
+                        span: 23..27,
+                        type_: Type::Bool(23..27)
                     })),
                     then: vec![
-                        Expr::Void(Box::new(Void { span: 34..38 }))
+                        Expr::Void(Box::new(Void {
+                            span: 34..38,
+                            type_: Type::Void(34..38)
+                        }))
                     ],
                     else_: vec![
-                        Expr::Void(Box::new(Void { span: 45..49 }))
+                        Expr::Void(Box::new(Void {
+                            span: 45..49,
+                            type_: Type::Void(45..49)
+                        }))
                     ],
                     span: 19..52
                 }))
@@ -3058,18 +3156,25 @@ mod tests {
                     value: Expr::If(Box::new(If {
                         condition: Expr::Bool(Box::new(BoolLiteral {
                             value: true,
-                            span: 31..35
+                            span: 31..35,
+                            type_: Type::Bool(31..35)
                         })),
                         then: vec![
-                            Expr::Void(Box::new(Void { span: 42..46 }))
+                            Expr::Void(Box::new(Void {
+                                span: 42..46,
+                                type_: Type::Void(42..46)
+                            }))
                         ],
                         else_: vec![
-                            Expr::Void(Box::new(Void { span: 53..57 }))
+                            Expr::Void(Box::new(Void {
+                                span: 53..57,
+                                type_: Type::Void(53..57)
+                            }))
                         ],
                         span: 27..58,
                     })),
                     span: 19..58,
-                    type_: Spanned(Type::Named("a".to_string().into()), 23..24)
+                    type_: Type::Named(23..24, interner.get_or_intern("a"))
                 }))
             ]
         );
@@ -3085,13 +3190,18 @@ mod tests {
                 Expr::When(Box::new(When {
                     condition: Expr::Bool(Box::new(BoolLiteral {
                         value: true,
-                        span: 25..29
+                        span: 25..29,
+                        type_: Type::Bool(25..29)
                     })),
                     then: vec![
-                        Expr::Void(Box::new(Void { span: 33..37 }))
+                        Expr::Void(Box::new(Void {
+                            span: 33..37,
+                            type_: Type::Void(33..37)
+                        }))
                     ],
                     else_: None,
                     span: 19..42,
+                    type_: Type::Void(19..42)
                 }))
             ]
         );
@@ -3101,13 +3211,18 @@ mod tests {
                 Expr::When(Box::new(When {
                     condition: Expr::Bool(Box::new(BoolLiteral {
                         value: true,
-                        span: 25..29
+                        span: 25..29,
+                        type_: Type::Bool(25..29)
                     })),
                     then: vec![
-                        Expr::Void(Box::new(Void { span: 36..40 }))
+                        Expr::Void(Box::new(Void {
+                            span: 36..40,
+                            type_: Type::Void(36..40)
+                        }))
                     ],
                     else_: None,
                     span: 19..43,
+                    type_: Type::Void(19..43)
                 }))
             ]
         );
@@ -3118,15 +3233,23 @@ mod tests {
                 Expr::When(Box::new(When {
                     condition: Expr::Bool(Box::new(BoolLiteral {
                         value: true,
-                        span: 25..29
+                        span: 25..29,
+                        type_: Type::Bool(25..29)
                     })),
                     then: vec![
-                        Expr::Void(Box::new(Void { span: 33..37 }))
+                        Expr::Void(Box::new(Void {
+                            span: 33..37,
+                            type_: Type::Void(33..37)
+                        }))
                     ],
                     else_: Some(vec![
-                        Expr::Void(Box::new(Void { span: 48..52 }))
+                        Expr::Void(Box::new(Void {
+                            span: 48..52,
+                            type_: Type::Void(48..52)
+                        }))
                     ]),
-                    span: 19..57
+                    span: 19..57,
+                    type_: Type::Void(19..57)
                 }))
             ]
         );
@@ -3137,15 +3260,23 @@ mod tests {
                 Expr::When(Box::new(When {
                     condition: Expr::Bool(Box::new(BoolLiteral {
                         value: true,
-                        span: 25..29
+                        span: 25..29,
+                        type_: Type::Bool(25..29)
                     })),
                     then: vec![
-                        Expr::Void(Box::new(Void { span: 36..40 }))
+                        Expr::Void(Box::new(Void {
+                            span: 36..40,
+                            type_: Type::Void(36..40)
+                        }))
                     ],
                     else_: Some(vec![
-                        Expr::Void(Box::new(Void { span: 47..51 }))
+                        Expr::Void(Box::new(Void {
+                            span: 47..51,
+                            type_: Type::Void(47..51)
+                        }))
                     ]),
-                    span: 19..54
+                    span: 19..54,
+                    type_: Type::Void(19..54)
                 }))
             ]
         );
@@ -3161,15 +3292,18 @@ mod tests {
                 Expr::While(Box::new(While {
                     condition: Expr::Bool(Box::new(BoolLiteral {
                         value: true,
-                        span: 26..30
+                        span: 26..30,
+                        type_: Type::Bool(26..30)
                     })),
                     body: vec![
                         Expr::Str(Box::new(StrLiteral {
                             value: interner.get_or_intern("hello"),
-                            span: 34..41
+                            span: 34..41,
+                            type_: Type::Str(34..41)
                         }))
                     ],
-                    span: 19..46
+                    span: 19..46,
+                    type_: Type::Void(19..46)
                 }))
             ]
         );
@@ -3183,16 +3317,21 @@ mod tests {
             result: exprs(test_parse("func main() void { break; return void; return 123; }", &mut interner)),
             expected: vec![
                 Expr::Break(Box::new(Break {
-                    span: 19..24
+                    span: 19..24,
+                    type_: Type::Void(19..24)
                 })),
                 Expr::Return(Box::new(Return {
-                    value: Expr::Void(Box::new(Void { span: 33..37 })),
-                    span: 26..38
+                    value: Expr::Void(Box::new(Void {
+                        span: 33..37,
+                        type_: Type::Void(33..37)
+                    })),
+                    span: 26..38,
                 })),
                 Expr::Return(Box::new(Return {
                     value: Expr::Int(Box::new(IntLiteral {
                         value: 123,
-                        span: 46..49
+                        span: 46..49,
+                        type_: Type::Int(46..49)
                     })),
                     span: 39..50
                 }))
@@ -3226,7 +3365,8 @@ r#"func main() void {
                                 })),
                                 rhs: Expr::Int(Box::new(IntLiteral {
                                     value: 3,
-                                    span: 36..37
+                                    span: 36..37,
+                                    type_: Type::Int(36..37)
                                 })),
                                 operator: BinaryOp {
                                     kind: BinaryOpKind::Rem,
@@ -3242,7 +3382,8 @@ r#"func main() void {
                                 })),
                                 rhs: Expr::Int(Box::new(IntLiteral {
                                     value: 5,
-                                    span: 43..44
+                                    span: 43..44,
+                                    type_: Type::Int(43..44)
                                 })),
                                 operator: BinaryOp {
                                     kind: BinaryOpKind::Rem,
@@ -3260,11 +3401,13 @@ r#"func main() void {
                                 values: vec![
                                     Pattern::Int(Box::new(IntLiteral {
                                         value: 0,
-                                        span: 59..60
+                                        span: 59..60,
+                                        type_: Type::Int(59..60)
                                     })),
                                     Pattern::Int(Box::new(IntLiteral {
                                         value: 0,
-                                        span: 62..63
+                                        span: 62..63,
+                                        type_: Type::Int(62..63)
                                     }))
                                 ],
                                 span: 57..69
@@ -3273,7 +3416,8 @@ r#"func main() void {
                             body: vec![
                                 Expr::Str(Box::new(StrLiteral {
                                     value: interner.get_or_intern("fizz buzz"),
-                                    span: 70..81
+                                    span: 70..81,
+                                    type_: Type::Str(70..81)
                                 }))
                             ],
                             span: 57..82
@@ -3283,7 +3427,8 @@ r#"func main() void {
                                 values: vec![
                                     Pattern::Int(Box::new(IntLiteral {
                                         value: 0,
-                                        span: 93..94
+                                        span: 93..94,
+                                        type_: Type::Int(93..94)
                                     })),
                                     Pattern::Wildcard(96..97)
                                 ],
@@ -3293,7 +3438,8 @@ r#"func main() void {
                             body: vec![
                                 Expr::Str(Box::new(StrLiteral {
                                     value: interner.get_or_intern("fizz"),
-                                    span: 104..110
+                                    span: 104..110,
+                                    type_: Type::Str(104..110)
                                 }))
                             ],
                             span: 91..111
@@ -3304,7 +3450,8 @@ r#"func main() void {
                                     Pattern::Wildcard(122..123),
                                     Pattern::Int(Box::new(IntLiteral {
                                         value: 0,
-                                        span: 125..126
+                                        span: 125..126,
+                                        type_: Type::Int(125..126)
                                     }))
                                 ],
                                 span: 120..129
@@ -3313,7 +3460,8 @@ r#"func main() void {
                             body: vec![
                                 Expr::Str(Box::new(StrLiteral {
                                     value: interner.get_or_intern("buzz"),
-                                    span: 130..136
+                                    span: 130..136,
+                                    type_: Type::Str(130..136)
                                 }))
                             ],
                             span: 120..140
@@ -3353,7 +3501,10 @@ r#"func main() void {
             &mut interner)),
             expected: vec![
                 Expr::Match(Box::new(Match {
-                    expression: Expr::Void(Box::new(Void { span: 30..34 })),
+                    expression: Expr::Void(Box::new(Void {
+                        span: 30..34,
+                        type_: Type::Void(30..34)
+                    })),
                     expressions: vec![],
                     span: 23..40
                 }))
@@ -3376,7 +3527,10 @@ r#"func main() void {
             &mut interner)),
             expected: vec![
                 Expr::Match(Box::new(Match {
-                    expression: Expr::Void(Box::new(Void { span: 30..34 })),
+                    expression: Expr::Void(Box::new(Void {
+                        span: 30..34,
+                        type_: Type::Void(30..34)
+                    })),
                     expressions: vec![
                         MatchCase {
                             pattern: Pattern::Ident(Box::new(Ident {
@@ -3390,17 +3544,21 @@ r#"func main() void {
                                 })),
                                 rhs: Expr::Int(Box::new(IntLiteral {
                                     value: 0,
-                                    span: 57..58
+                                    span: 57..58,
+                                    type_: Type::Int(57..58)
                                 })),
                                 operator: BinaryOp {
                                     kind: BinaryOpKind::NEq,
                                     span: 54..56
                                 },
                                 span: 52..58,
-                                type_: Some(Type::Bool)
+                                type_: Some(Type::Bool(54..56))
                             }))),
                             body: vec![
-                                Expr::Void(Box::new(Void { span: 62..66 }))
+                                Expr::Void(Box::new(Void {
+                                    span: 62..66,
+                                    type_: Type::Void(62..66)
+                                }))
                             ],
                             span: 46..70
                         },
@@ -3432,10 +3590,13 @@ r#"func main() void {
                                     span: 92..94
                                 },
                                 span: 90..96,
-                                type_: Some(Type::Bool)
+                                type_: Some(Type::Bool(92..94))
                             }))),
                             body: vec![
-                                Expr::Void(Box::new(Void { span: 100..104 }))
+                                Expr::Void(Box::new(Void {
+                                    span: 100..104,
+                                    type_: Type::Void(100..104)
+                                }))
                             ],
                             span: 79..113
                         }
@@ -3469,8 +3630,9 @@ r#"func main() void {
                     value: Expr::Int(Box::new(IntLiteral {
                         value: 0,
                         span: 35..36,
+                        type_: Type::Int(35..36)
                     })),
-                    type_: Spanned(Type::Int, 29..32),
+                    type_: Type::Int(29..32),
                     span: 23..37
                 })),
                 Expr::DefVar(Box::new(DefVar {
@@ -3478,8 +3640,9 @@ r#"func main() void {
                     value: Expr::Float(Box::new(FloatLiteral {
                         value: 0.0,
                         span: 56..59,
+                        type_: Type::Float(56..59)
                     })),
-                    type_: Spanned(Type::Float, 48..53),
+                    type_: Type::Float(48..53),
                     span: 42..60
                 })),
                 Expr::DefVar(Box::new(DefVar {
@@ -3487,8 +3650,9 @@ r#"func main() void {
                     value: Expr::Str(Box::new(StrLiteral {
                         value: interner.get_or_intern("hello"),
                         span: 77..84,
+                        type_: Type::Str(77..84)
                     })),
-                    type_: Spanned(Type::Str, 71..74),
+                    type_: Type::Str(71..74),
                     span: 65..85
                 })),
                 Expr::DefVar(Box::new(DefVar {
@@ -3496,16 +3660,18 @@ r#"func main() void {
                     value: Expr::Bool(Box::new(BoolLiteral {
                         value: true,
                         span: 103..107,
+                        type_: Type::Bool(103..107)
                     })),
-                    type_: Spanned(Type::Bool, 96..100),
+                    type_: Type::Bool(96..100),
                     span: 90..108
                 })),
                 Expr::DefVar(Box::new(DefVar {
                     name: interner.get_or_intern("e"),
                     value: Expr::Void(Box::new(Void {
                         span: 126..130,
+                        type_: Type::Void(126..130)
                     })),
-                    type_: Spanned(Type::Void, 119..123),
+                    type_: Type::Void(119..123),
                     span: 113..131
                 })),
                 Expr::DefVar(Box::new(DefVar {
@@ -3516,11 +3682,13 @@ r#"func main() void {
                                 elements: vec![
                                     Expr::Int(Box::new(IntLiteral {
                                         value: 0,
-                                        span: 154..155
+                                        span: 154..155,
+                                        type_: Type::Int(154..155)
                                     })),
                                     Expr::Int(Box::new(IntLiteral {
                                         value: 0,
-                                        span: 157..158
+                                        span: 157..158,
+                                        type_: Type::Int(157..158)
                                     }))
                                 ],
                                 span: 153..160,
@@ -3528,7 +3696,7 @@ r#"func main() void {
                         ],
                         span: 152..161,
                     })),
-                    type_: Spanned(Type::List(Box::new(Type::List(Box::new(Type::Int)))), 142..149),
+                    type_: Type::List(142..149, Box::new(Type::List(144..149, Box::new(Type::Int(146..149))))),
                     span: 136..161
                 })),
                 Expr::DefVar(Box::new(DefVar {
@@ -3539,38 +3707,41 @@ r#"func main() void {
                                 values: vec![
                                     Expr::Int(Box::new(IntLiteral {
                                         value: 1,
-                                        span: 198..199
+                                        span: 198..199,
+                                        type_: Type::Int(198..199)
                                     })),
                                     Expr::Int(Box::new(IntLiteral {
                                         value: 1,
-                                        span: 201..202
+                                        span: 201..202,
+                                        type_: Type::Int(201..202)
                                     }))
                                 ],
                                 span: 196..204,
                             })),
                             Expr::Str(Box::new(StrLiteral {
                                 value: interner.get_or_intern("hello"),
-                                span: 205..212
+                                span: 205..212,
+                                type_: Type::Str(205..212)
                             }))
                         ],
                         span: 194..214
                     })),
-                    type_: Spanned(Type::Tup(vec![Type::Tup(vec![Type::Int, Type::Int]), Type::Str]), 172..193),
+                    type_: Type::Tup(172..193, vec![Type::Tup(174..186, vec![Type::Int(176..179), Type::Int(181..184)]), Type::Str(187..190)]),
                     span: 166..214
                 })),
                 Expr::DefVar(Box::new(DefVar {
                     name: interner.get_or_intern("h"),
                     value: Expr::Int(Box::new(IntLiteral {
                         value: 0,
-                        span: 241..242
+                        span: 241..242,
+                        type_: Type::Int(241..242)
                     })),
-                    type_: Spanned(
+                    type_:
                         Type::Func(
-                            vec![Spanned(Type::Int, 230..233)],
-                            Box::new(Spanned(Type::Int, 235..238))
+                            225..240,
+                            vec![Type::Int(230..233)],
+                            Box::new(Type::Int(235..238))
                         ),
-                        225..240
-                    ),
                     span: 219..243
                 })),
             ]
