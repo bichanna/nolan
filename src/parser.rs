@@ -252,7 +252,13 @@ impl<'a> Parser<'a> {
 
         self.next();
 
-        Ok(Type::Tup(combine(&span, &self.lexer.span()), types))
+        let span = combine(&span, &self.lexer.span());
+
+        if types.len() == 0 {
+            throw_error!(span.clone(), "tuple must contain at least one value");
+        }
+
+        Ok(Type::Tup(span, types))
     }
 
     fn parse_func_type(&mut self) -> ParseResult<Type> {
@@ -1856,10 +1862,13 @@ impl<'a> Parser<'a> {
 
         self.next();
 
-        Ok(Pattern::Tuple(Box::new(TuplePattern {
-            values,
-            span: combine(&span, &self.lexer.span()),
-        })))
+        let span = combine(&span, &self.lexer.span());
+
+        if values.len() == 0 {
+            throw_error!(span.clone(), "tuple must contain at least one value");
+        }
+
+        Ok(Pattern::Tuple(Box::new(TuplePattern { values, span })))
     }
 
     fn parse_list_pattern(&mut self) -> ParseResult<Pattern> {
@@ -2290,10 +2299,13 @@ impl<'a> Parser<'a> {
 
         self.next();
 
-        Ok(Expr::Tuple(Box::new(Tuple {
-            values,
-            span: combine(&span, &self.lexer.span()),
-        })))
+        let span = combine(&span, &self.lexer.span());
+
+        if values.len() == 0 {
+            throw_error!(span.clone(), "tuple must contain at least one value")
+        }
+
+        Ok(Expr::Tuple(Box::new(Tuple { values, span })))
     }
 }
 
@@ -3726,7 +3738,17 @@ r#"func main() void {
                         ],
                         span: 194..214
                     })),
-                    type_: Type::Tup(172..193, vec![Type::Tup(174..186, vec![Type::Int(176..179), Type::Int(181..184)]), Type::Str(187..190)]),
+                    type_: Type::Tup(
+                        172..193,
+                        vec![
+                            Type::Tup(
+                                174..186,
+                                vec![
+                                    Type::Int(176..179),
+                                    Type::Int(181..184)
+                                ]),
+                                Type::Str(187..190)
+                        ]),
                     span: 166..214
                 })),
                 Expr::DefVar(Box::new(DefVar {
