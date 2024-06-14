@@ -24,12 +24,12 @@ struct TypeChecker<'a> {
     type_env: TypeEnv<'a>,
 }
 
-type AST = Vec<TopLevelExpr>;
+type Ast = Vec<TopLevelExpr>;
 
 pub fn type_check(
-    ast: AST,
+    ast: Ast,
     interner: &mut DefaultStringInterner,
-) -> Result<AST, Vec<TypeCheckError>> {
+) -> Result<Ast, Vec<TypeCheckError>> {
     let mut type_checker = TypeChecker::new(ast, interner);
     if let Err(errs) = type_checker.check() {
         Err(errs)
@@ -114,14 +114,16 @@ impl<'a> TypeEnv<'a> {
         symbol: SymbolU32,
         type_: Type,
     ) -> TypeCheckResult {
-        if self.types.contains_key(&symbol) {
+        if let std::collections::hash_map::Entry::Vacant(e) =
+            self.types.entry(symbol)
+        {
+            e.insert(Either::Left(type_));
+            Ok(())
+        } else {
             Err(Spanned(
                 format!("{} is already defined", self.force_resolve(symbol)),
                 type_.get_span().clone(),
             ))
-        } else {
-            self.types.insert(symbol, Either::Left(type_));
-            Ok(())
         }
     }
 
@@ -130,13 +132,15 @@ impl<'a> TypeEnv<'a> {
         symbol: SymbolU32,
         span: Span,
     ) -> TypeCheckResult {
-        if self.types.contains_key(&symbol) {
+        if let std::collections::hash_map::Entry::Vacant(e) =
+            self.types.entry(symbol)
+        {
+            e.insert(Either::Right(vec![span]));
+            Ok(())
+        } else {
             if let Either::Right(spans) = self.types.get_mut(&symbol).unwrap() {
                 spans.push(span);
             }
-            Ok(())
-        } else {
-            self.types.insert(symbol, Either::Right(vec![span]));
             Ok(())
         }
     }
