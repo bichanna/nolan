@@ -222,7 +222,7 @@ mod tests {
     #[test]
     fn keywords() {
         let src = "not if else then when do pure rec func match let enum struct while break continue return use export true false and or";
-        let mut lexer = Token::lexer(&src);
+        let mut lexer = Token::lexer(src);
 
         assert_eq!(lexer.next(), Some(Ok(Token::Not)));
         assert_eq!(lexer.next(), Some(Ok(Token::If)));
@@ -253,7 +253,7 @@ mod tests {
     #[test]
     fn types() {
         let src = "str int float bool void";
-        let mut lexer = Token::lexer(&src);
+        let mut lexer = Token::lexer(src);
 
         assert_eq!(lexer.next(), Some(Ok(Token::TStr)));
         assert_eq!(lexer.next(), Some(Ok(Token::TInt)));
@@ -270,7 +270,7 @@ mod tests {
             // some comments here!
             /* hello world */ abc
         "#;
-        let mut lexer = Token::lexer(&src);
+        let mut lexer = Token::lexer(src);
 
         assert_eq!(
             lexer.next(),

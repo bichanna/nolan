@@ -79,7 +79,7 @@ pub fn parse(
             )]);
         }
     } else {
-        return Ok(Module::new(module_name.clone(), source, 0..0));
+        return Ok(Module::new(module_name, source, 0..0));
     }
 
     let exprs = Parser::new(lexer, interner, current.unwrap()).parse();
@@ -254,7 +254,7 @@ impl<'a> Parser<'a> {
 
         let span = combine(&span, &self.lexer.span());
 
-        if types.len() == 0 {
+        if types.is_empty() {
             throw_error!(span.clone(), "tuple must contain at least one value");
         }
 
@@ -1167,7 +1167,7 @@ impl<'a> Parser<'a> {
         self.next();
 
         Ok(Expr::StructFieldAccess(Box::new(StructFieldAccess {
-            source: source.clone(),
+            source,
             field,
             span: combine(&span, &self.lexer.span()),
         })))
@@ -1666,7 +1666,7 @@ impl<'a> Parser<'a> {
             or_patterns.push(self.parse_pattern()?);
         }
 
-        if or_patterns.len() > 0 {
+        if !or_patterns.is_empty() {
             pattern = Pattern::Or(Box::new(OrPattern {
                 patterns: or_patterns,
                 span: combine(&or_span, &self.lexer.span()),
@@ -1778,7 +1778,7 @@ impl<'a> Parser<'a> {
         let source = self.interner.get_or_intern(ident);
 
         let enum_var_access = EnumVarAccess {
-            source: source.clone(),
+            source,
             variant,
             type_: Type::Named(span.clone(), source),
             span: span.clone(),
@@ -1864,7 +1864,7 @@ impl<'a> Parser<'a> {
 
         let span = combine(&span, &self.lexer.span());
 
-        if values.len() == 0 {
+        if values.is_empty() {
             throw_error!(span.clone(), "tuple must contain at least one value");
         }
 
@@ -2144,12 +2144,10 @@ impl<'a> Parser<'a> {
 
         let else_body = if matches!(self.current, Ok(Token::LeftBrace)) {
             self.parse_curly_body()?
+        } else if standalone {
+            vec![self.parse_standalone_expression()?]
         } else {
-            if standalone {
-                vec![self.parse_standalone_expression()?]
-            } else {
-                vec![self.parse_expression()?]
-            }
+            vec![self.parse_expression()?]
         };
 
         Ok(Expr::If(Box::new(If {
@@ -2301,7 +2299,7 @@ impl<'a> Parser<'a> {
 
         let span = combine(&span, &self.lexer.span());
 
-        if values.len() == 0 {
+        if values.is_empty() {
             throw_error!(span.clone(), "tuple must contain at least one value")
         }
 
@@ -2337,7 +2335,7 @@ mod tests {
             if top_level_exprs.len() == 1 {
                 if let TopLevelExpr::Func(func) = top_level_exprs.pop().unwrap()
                 {
-                    return func.closure.body;
+                    func.closure.body
                 } else {
                     panic!("expected a function");
                 }

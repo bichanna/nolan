@@ -279,7 +279,7 @@ pub struct Module {
 impl Module {
     pub fn new(name: SymbolU32, path: SourcePath, span: Span) -> Self {
         Self {
-            name: name.clone(),
+            name,
             path,
             expressions: vec![],
             type_: Type::Named(span, name),
@@ -520,7 +520,7 @@ impl Node for AssignVar {
 
     fn get_type(&self) -> Option<&Type> {
         if let Some(t_) = &self.type_ {
-            Some(&t_)
+            Some(t_)
         } else {
             None
         }
