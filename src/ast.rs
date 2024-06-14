@@ -1,6 +1,5 @@
 use std::fmt::Debug;
 use string_interner::symbol::SymbolU32;
-use string_interner::DefaultStringInterner;
 
 use crate::error::{combine, SourcePath, Span, Spanned};
 use crate::lexer::Token;
