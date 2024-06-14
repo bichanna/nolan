@@ -182,7 +182,7 @@ impl<'a> Parser<'a> {
         match current {
             Token::Enum => self.parse_enum_def(),
             Token::Struct => self.parse_struct_def(),
-            Token::Func | Token::Pure | Token::Rec => self.parse_func(),
+            Token::Func | Token::Rec => self.parse_func(),
             Token::Use => self.parse_use(),
             Token::Export => self.parse_export(),
             _ => {
@@ -608,13 +608,6 @@ impl<'a> Parser<'a> {
     fn parse_func(&mut self) -> ParseResult<TopLevelExpr> {
         let span = self.lexer.span();
 
-        let pure = if matches!(self.current, Ok(Token::Pure)) {
-            self.next();
-            true
-        } else {
-            false
-        };
-
         let rec = if matches!(self.current, Ok(Token::Rec)) {
             self.next();
             true
@@ -658,7 +651,6 @@ impl<'a> Parser<'a> {
         let span = combine(&span, &self.lexer.span());
 
         Ok(TopLevelExpr::Func(Box::new(Func {
-            pure,
             rec,
             name: self.interner.get_or_intern(func_name),
             closure: Closure {
@@ -2578,7 +2570,6 @@ mod tests {
         assert_eq!(
             result: one_top(test_parse("func main(args []str) void {}", &mut interner)),
             expected: TopLevelExpr::Func(Box::new(Func {
-                pure: false,
                 rec: false,
                 name: interner.get_or_intern("main"),
                 closure: Closure {
@@ -2600,7 +2591,6 @@ mod tests {
         assert_eq!(
             result: one_top(test_parse("func main() void do void;", &mut interner)),
             expected: TopLevelExpr::Func(Box::new(Func {
-                pure: false,
                 rec: false,
                 name: interner.get_or_intern("main"),
                 closure: Closure {

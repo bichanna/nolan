@@ -278,12 +278,7 @@ pub struct Module {
 
 impl Module {
     pub fn new(name: SymbolU32, path: SourcePath, span: Span) -> Self {
-        Self {
-            name,
-            path,
-            expressions: vec![],
-            type_: Type::Named(span, name),
-        }
+        Self { name, path, expressions: vec![], type_: Type::Named(span, name) }
     }
 }
 
@@ -324,7 +319,6 @@ impl Node for Closure {
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Func {
-    pub pure: bool,
     pub rec: bool,
     pub name: SymbolU32,
     pub closure: Closure,
