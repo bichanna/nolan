@@ -319,7 +319,7 @@ impl<'a> Parser<'a> {
             _ => {
                 let current = self.current()?.clone();
                 let span = self.lexer.span();
-                if let Ok(t) = Type::convert_from(current, span.clone()) {
+                if let Some(t) = Type::convert_from(current, span.clone()) {
                     self.next();
                     Ok(t)
                 } else {
@@ -736,6 +736,8 @@ impl<'a> Parser<'a> {
         );
 
         self.next();
+
+        // Check mod_name & import_symbols
 
         Ok(TopLevelExpr::Use(Box::new(Use {
             module: mod_name,

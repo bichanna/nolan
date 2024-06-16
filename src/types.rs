@@ -32,14 +32,14 @@ impl Type {
         }
     }
 
-    pub fn convert_from(value: Token, span: Span) -> Result<Self, ()> {
+    pub fn convert_from(value: Token, span: Span) -> Option<Self> {
         match value {
-            Token::TInt => Ok(Type::Int(span)),
-            Token::TFloat => Ok(Type::Float(span)),
-            Token::TStr => Ok(Type::Str(span)),
-            Token::TBool => Ok(Type::Bool(span)),
-            Token::Void => Ok(Type::Void(span)),
-            _ => Err(()),
+            Token::TInt => Some(Type::Int(span)),
+            Token::TFloat => Some(Type::Float(span)),
+            Token::TStr => Some(Type::Str(span)),
+            Token::TBool => Some(Type::Bool(span)),
+            Token::Void => Some(Type::Void(span)),
+            _ => None,
         }
     }
 
