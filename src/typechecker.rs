@@ -1,10 +1,9 @@
-use std::collections::HashMap;
-use string_interner::symbol::SymbolU32;
-use string_interner::DefaultStringInterner;
-
 use crate::ast::*;
 use crate::error::{Span, Spanned, TypeCheckError};
 use crate::types::Type;
+use std::collections::HashMap;
+use string_interner::symbol::SymbolU32;
+use string_interner::DefaultStringInterner;
 
 type TypeCheckResult = Result<(), TypeCheckError>;
 
@@ -191,7 +190,8 @@ impl<'a> TypeChecker<'a> {
             | Type::Float(_)
             | Type::Str(_)
             | Type::Bool(_)
-            | Type::Void(_) => {}
+            | Type::Void(_)
+            | Type::Unknown(_) => {}
 
             Type::List(_, typ) => self.check_type(typ),
 
@@ -217,7 +217,138 @@ impl<'a> TypeChecker<'a> {
         }
     }
 
-    fn check_closure(&mut self, closure: Closure) {}
+    fn check_expr(&mut self, expr: Expr) -> Option<Type> {
+        match expr {
+            Expr::Int(int_literal) => Some(int_literal.get_type().clone()),
+            Expr::Float(float) => Some(float.get_type().clone()),
+            Expr::Str(str_literal) => Some(str_literal.get_type().clone()),
+            Expr::Bool(bool_literal) => Some(bool_literal.get_type().clone()),
+            Expr::List(list) => self.check_list(*list),
+            Expr::Tuple(tup) => self.check_tuple(*tup),
+            _ => None,
+        }
+    }
+
+    fn check_tuple(
+        &mut self,
+        Tuple { values, span: _, type_ }: Tuple,
+    ) -> Option<Type> {
+        let Type::Tup(_, ref types) = type_ else {
+            self.errors.push(Spanned(
+                format!(
+                    "expected tuple type but got {}",
+                    &type_.display(self.type_env.interner)
+                ),
+                type_.get_span().clone(),
+            ));
+            return None;
+        };
+
+        for (value, tt) in values.into_iter().zip(types) {
+            let t = self.check_expr(value)?;
+            if !t.ignore_span_equal(tt) {
+                self.errors.push(Spanned(
+                    format!(
+                        "expected {} but got {}",
+                        tt.display(self.type_env.interner),
+                        t.display(self.type_env.interner),
+                    ),
+                    t.get_span().clone(),
+                ));
+                return None;
+            }
+        }
+
+        Some(type_)
+    }
+
+    fn check_list(
+        &mut self,
+        List { elements, span, type_: _ }: List,
+    ) -> Option<Type> {
+        if !elements.is_empty() {
+            let elems = elements
+                .into_iter()
+                .map(|elem| self.check_expr(elem))
+                .collect::<Vec<Option<Type>>>();
+
+            for elem in &elems {
+                if elem.is_none() {
+                    return None;
+                }
+            }
+
+            let elems = elems
+                .into_iter()
+                .map(|elem| elem.unwrap())
+                .collect::<Vec<Type>>();
+
+            let first = elems.first().unwrap();
+            for elem in &elems {
+                if !elem.ignore_span_equal(first) {
+                    self.errors.push(Spanned(
+                        format!(
+                            "expected type of {}",
+                            first.display(self.type_env.interner)
+                        ),
+                        elem.get_span().clone(),
+                    ));
+                    return None;
+                }
+            }
+
+            Some(Type::List(span, Box::new(first.clone())))
+        } else {
+            Some(Type::List(span.clone(), Box::new(Type::Unknown(span))))
+        }
+    }
+
+    fn check_closure(
+        &mut self,
+        Closure { parameters, return_type, mut body, span, type_: _ }: Closure,
+    ) -> Option<Type> {
+        for func_param in &parameters {
+            self.check_type(&func_param.type_);
+        }
+
+        self.check_type(&return_type);
+
+        let closure_type = Type::Func(
+            span,
+            parameters.iter().map(|param| param.type_.clone()).collect(),
+            return_type.clone().into(),
+        );
+
+        match &return_type {
+            Type::Void(_) => Some(closure_type),
+
+            _ if body.is_empty() => {
+                self.errors.push(Spanned(
+                    format!(
+                        "expected {} but the body is empty",
+                        return_type.display(self.type_env.interner)
+                    ),
+                    0..0,
+                ));
+
+                None
+            }
+
+            _ => {
+                let last_expr = body.pop().unwrap();
+                if !self.check_expr(last_expr)?.ignore_span_equal(&return_type)
+                {
+                    return None;
+                }
+
+                for expr in body {
+                    self.check_expr(expr);
+                }
+
+                Some(closure_type)
+            }
+        }
+    }
 }
 
 impl<'a> TypeEnv<'a> {
