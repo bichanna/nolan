@@ -7,7 +7,7 @@ use crate::types::Type;
 
 pub trait Node {
     fn get_span(&self) -> &Span;
-    fn get_type(&self) -> Option<&Type>;
+    fn get_type(&self) -> &Type;
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -22,8 +22,8 @@ impl Node for IntLiteral {
         &self.span
     }
 
-    fn get_type(&self) -> Option<&Type> {
-        Some(&self.type_)
+    fn get_type(&self) -> &Type {
+        &self.type_
     }
 }
 
@@ -39,8 +39,8 @@ impl Node for FloatLiteral {
         &self.span
     }
 
-    fn get_type(&self) -> Option<&Type> {
-        Some(&self.type_)
+    fn get_type(&self) -> &Type {
+        &self.type_
     }
 }
 
@@ -56,8 +56,8 @@ impl Node for StrLiteral {
         &self.span
     }
 
-    fn get_type(&self) -> Option<&Type> {
-        Some(&self.type_)
+    fn get_type(&self) -> &Type {
+        &self.type_
     }
 }
 
@@ -73,8 +73,8 @@ impl Node for BoolLiteral {
         &self.span
     }
 
-    fn get_type(&self) -> Option<&Type> {
-        Some(&self.type_)
+    fn get_type(&self) -> &Type {
+        &self.type_
     }
 }
 
@@ -82,6 +82,7 @@ impl Node for BoolLiteral {
 pub struct List {
     pub elements: Vec<Expr>,
     pub span: Span,
+    pub type_: Type,
 }
 
 impl Node for List {
@@ -89,8 +90,8 @@ impl Node for List {
         &self.span
     }
 
-    fn get_type(&self) -> Option<&Type> {
-        None
+    fn get_type(&self) -> &Type {
+        &self.type_
     }
 }
 
@@ -98,6 +99,7 @@ impl Node for List {
 pub struct Tuple {
     pub values: Vec<Expr>,
     pub span: Span,
+    pub type_: Type,
 }
 
 impl Node for Tuple {
@@ -105,8 +107,8 @@ impl Node for Tuple {
         &self.span
     }
 
-    fn get_type(&self) -> Option<&Type> {
-        None
+    fn get_type(&self) -> &Type {
+        &self.type_
     }
 }
 
@@ -114,6 +116,7 @@ impl Node for Tuple {
 pub struct Ident {
     pub name: SymbolU32,
     pub span: Span,
+    pub type_: Type,
 }
 
 impl Node for Ident {
@@ -121,8 +124,8 @@ impl Node for Ident {
         &self.span
     }
 
-    fn get_type(&self) -> Option<&Type> {
-        None
+    fn get_type(&self) -> &Type {
+        &self.type_
     }
 }
 
@@ -139,8 +142,8 @@ impl Node for EnumVarAccess {
         &self.span
     }
 
-    fn get_type(&self) -> Option<&Type> {
-        Some(&self.type_)
+    fn get_type(&self) -> &Type {
+        &self.type_
     }
 }
 
@@ -149,6 +152,7 @@ pub struct StructFieldAccess {
     pub source: SymbolU32,
     pub field: SymbolU32,
     pub span: Span,
+    pub type_: Type,
 }
 
 impl Node for StructFieldAccess {
@@ -156,8 +160,8 @@ impl Node for StructFieldAccess {
         &self.span
     }
 
-    fn get_type(&self) -> Option<&Type> {
-        None
+    fn get_type(&self) -> &Type {
+        &self.type_
     }
 }
 
@@ -166,6 +170,7 @@ pub struct ModAccess {
     pub module: SymbolU32,
     pub constant: SymbolU32,
     pub span: Span,
+    pub type_: Type,
 }
 
 impl Node for ModAccess {
@@ -173,8 +178,8 @@ impl Node for ModAccess {
         &self.span
     }
 
-    fn get_type(&self) -> Option<&Type> {
-        None
+    fn get_type(&self) -> &Type {
+        &self.type_
     }
 }
 
@@ -190,6 +195,7 @@ pub struct EnumDef {
     pub name: SymbolU32,
     pub variants: Vec<EnumVarDef>,
     pub span: Span,
+    pub type_: Type,
 }
 
 impl Node for EnumDef {
@@ -197,8 +203,8 @@ impl Node for EnumDef {
         &self.span
     }
 
-    fn get_type(&self) -> Option<&Type> {
-        None
+    fn get_type(&self) -> &Type {
+        &self.type_
     }
 }
 
@@ -207,6 +213,7 @@ pub struct Call {
     pub callee: Expr,
     pub arguments: Vec<Expr>,
     pub span: Span,
+    pub type_: Type,
 }
 
 impl Node for Call {
@@ -214,8 +221,8 @@ impl Node for Call {
         &self.span
     }
 
-    fn get_type(&self) -> Option<&Type> {
-        None
+    fn get_type(&self) -> &Type {
+        &self.type_
     }
 }
 
@@ -231,6 +238,7 @@ pub struct StructDef {
     pub name: SymbolU32,
     pub fields: Vec<StructFieldDef>,
     pub span: Span,
+    pub type_: Type,
 }
 
 impl Node for StructDef {
@@ -238,8 +246,8 @@ impl Node for StructDef {
         &self.span
     }
 
-    fn get_type(&self) -> Option<&Type> {
-        None
+    fn get_type(&self) -> &Type {
+        &self.type_
     }
 }
 
@@ -263,8 +271,8 @@ impl Node for StructInit {
         &self.span
     }
 
-    fn get_type(&self) -> Option<&Type> {
-        Some(&self.type_)
+    fn get_type(&self) -> &Type {
+        &self.type_
     }
 }
 
@@ -287,8 +295,8 @@ impl Node for Module {
         unimplemented!()
     }
 
-    fn get_type(&self) -> Option<&Type> {
-        Some(&self.type_)
+    fn get_type(&self) -> &Type {
+        &self.type_
     }
 }
 
@@ -305,6 +313,7 @@ pub struct Closure {
     pub return_type: Type,
     pub body: Vec<Expr>,
     pub span: Span,
+    pub type_: Type,
 }
 
 impl Node for Closure {
@@ -312,8 +321,8 @@ impl Node for Closure {
         &self.span
     }
 
-    fn get_type(&self) -> Option<&Type> {
-        None
+    fn get_type(&self) -> &Type {
+        &self.type_
     }
 }
 
@@ -330,7 +339,7 @@ impl Node for Func {
         &self.span
     }
 
-    fn get_type(&self) -> Option<&Type> {
+    fn get_type(&self) -> &Type {
         self.closure.get_type()
     }
 }
@@ -385,7 +394,7 @@ pub struct Binary {
     pub rhs: Expr,
     pub operator: BinaryOp,
     pub span: Span,
-    pub type_: Option<Type>,
+    pub type_: Type,
 }
 
 impl Node for Binary {
@@ -393,12 +402,8 @@ impl Node for Binary {
         &self.span
     }
 
-    fn get_type(&self) -> Option<&Type> {
-        if let Some(t_) = &self.type_ {
-            Some(t_)
-        } else {
-            None
-        }
+    fn get_type(&self) -> &Type {
+        &self.type_
     }
 }
 
@@ -429,7 +434,7 @@ pub struct Unary {
     pub rhs: Expr,
     pub operator: UnaryOp,
     pub span: Span,
-    pub type_: Option<Type>,
+    pub type_: Type,
 }
 
 impl Node for Unary {
@@ -437,12 +442,8 @@ impl Node for Unary {
         &self.span
     }
 
-    fn get_type(&self) -> Option<&Type> {
-        if let Some(t_) = &self.type_ {
-            Some(t_)
-        } else {
-            None
-        }
+    fn get_type(&self) -> &Type {
+        &self.type_
     }
 }
 
@@ -457,7 +458,7 @@ impl Node for Group {
         &self.span
     }
 
-    fn get_type(&self) -> Option<&Type> {
+    fn get_type(&self) -> &Type {
         self.expression.get_type()
     }
 }
@@ -468,6 +469,7 @@ pub struct If {
     pub then: Vec<Expr>,
     pub else_: Vec<Expr>,
     pub span: Span,
+    pub type_: Type,
 }
 
 impl Node for If {
@@ -475,8 +477,8 @@ impl Node for If {
         &self.span
     }
 
-    fn get_type(&self) -> Option<&Type> {
-        None
+    fn get_type(&self) -> &Type {
+        &self.type_
     }
 }
 
@@ -494,8 +496,8 @@ impl Node for When {
         &self.span
     }
 
-    fn get_type(&self) -> Option<&Type> {
-        Some(&self.type_)
+    fn get_type(&self) -> &Type {
+        &self.type_
     }
 }
 
@@ -503,7 +505,7 @@ impl Node for When {
 pub struct AssignVar {
     pub left: Expr,
     pub value: Expr,
-    pub type_: Option<Type>,
+    pub type_: Type,
     pub span: Span,
 }
 
@@ -512,12 +514,8 @@ impl Node for AssignVar {
         &self.span
     }
 
-    fn get_type(&self) -> Option<&Type> {
-        if let Some(t_) = &self.type_ {
-            Some(t_)
-        } else {
-            None
-        }
+    fn get_type(&self) -> &Type {
+        &self.type_
     }
 }
 
@@ -534,8 +532,8 @@ impl Node for DefVar {
         &self.span
     }
 
-    fn get_type(&self) -> Option<&Type> {
-        Some(&self.type_)
+    fn get_type(&self) -> &Type {
+        &self.type_
     }
 }
 
@@ -544,6 +542,7 @@ pub struct Index {
     pub source: Expr,
     pub index: Expr,
     pub span: Span,
+    pub type_: Type,
 }
 
 impl Node for Index {
@@ -551,8 +550,8 @@ impl Node for Index {
         &self.span
     }
 
-    fn get_type(&self) -> Option<&Type> {
-        None
+    fn get_type(&self) -> &Type {
+        &self.type_
     }
 }
 
@@ -569,8 +568,8 @@ impl Node for Use {
         &self.span
     }
 
-    fn get_type(&self) -> Option<&Type> {
-        Some(&self.type_)
+    fn get_type(&self) -> &Type {
+        &self.type_
     }
 }
 
@@ -586,8 +585,8 @@ impl Node for Export {
         &self.span
     }
 
-    fn get_type(&self) -> Option<&Type> {
-        Some(&self.type_)
+    fn get_type(&self) -> &Type {
+        &self.type_
     }
 }
 
@@ -604,8 +603,8 @@ impl Node for While {
         &self.span
     }
 
-    fn get_type(&self) -> Option<&Type> {
-        Some(&self.type_)
+    fn get_type(&self) -> &Type {
+        &self.type_
     }
 }
 
@@ -620,8 +619,8 @@ impl Node for Break {
         &self.span
     }
 
-    fn get_type(&self) -> Option<&Type> {
-        Some(&self.type_)
+    fn get_type(&self) -> &Type {
+        &self.type_
     }
 }
 
@@ -636,7 +635,7 @@ impl Node for Return {
         &self.span
     }
 
-    fn get_type(&self) -> Option<&Type> {
+    fn get_type(&self) -> &Type {
         self.value.get_type()
     }
 }
@@ -714,6 +713,7 @@ pub struct Match {
     pub expression: Expr,
     pub expressions: Vec<MatchCase>,
     pub span: Span,
+    pub type_: Type,
 }
 
 impl Node for Match {
@@ -721,8 +721,8 @@ impl Node for Match {
         &self.span
     }
 
-    fn get_type(&self) -> Option<&Type> {
-        None
+    fn get_type(&self) -> &Type {
+        &self.type_
     }
 }
 
@@ -737,8 +737,8 @@ impl Node for Void {
         &self.span
     }
 
-    fn get_type(&self) -> Option<&Type> {
-        Some(&self.type_)
+    fn get_type(&self) -> &Type {
+        &self.type_
     }
 }
 
@@ -782,7 +782,7 @@ impl Expr {
         left: Self,
         binary_op: BinaryOp,
         right: Self,
-        type_: Option<Type>,
+        type_: Type,
     ) -> Self {
         let new_span = combine(left.get_span(), right.get_span());
         Self::Binary(Box::new(Binary {
@@ -795,7 +795,7 @@ impl Expr {
     }
 
     #[inline]
-    pub fn unary(unary_op: UnaryOp, right: Self, type_: Option<Type>) -> Self {
+    pub fn unary(unary_op: UnaryOp, right: Self, type_: Type) -> Self {
         let new_span = combine(&unary_op.span, right.get_span());
         Self::Unary(Box::new(Unary {
             rhs: right,
@@ -842,7 +842,7 @@ impl Node for Expr {
         }
     }
 
-    fn get_type(&self) -> Option<&Type> {
+    fn get_type(&self) -> &Type {
         match self {
             Self::Int(ref expr) => expr.get_type(),
             Self::Float(ref node) => node.get_type(),
@@ -900,7 +900,7 @@ impl Node for TopLevelExpr {
         }
     }
 
-    fn get_type(&self) -> Option<&Type> {
+    fn get_type(&self) -> &Type {
         match self {
             Self::EnumDef(ref node) => node.get_type(),
             Self::StructDef(ref node) => node.get_type(),

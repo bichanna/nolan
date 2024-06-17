@@ -15,9 +15,62 @@ pub enum Type {
     Tup(Span, Vec<Type>),             // #(`Type`...)
     Func(Span, Vec<Type>, Box<Type>), // func(`Type`...) `Type`
     Named(Span, SymbolU32),
+    Unknown(Span),
 }
 
 impl Type {
+    pub fn ignore_span_equal(&self, other: &Type) -> bool {
+        match self {
+            Type::Int(_) => matches!(other, Type::Int(_)),
+            Type::Float(_) => matches!(other, Type::Float(_)),
+            Type::Str(_) => matches!(other, Type::Str(_)),
+            Type::Bool(_) => matches!(other, Type::Bool(_)),
+            Type::Void(_) => matches!(other, Type::Void(_)),
+            Type::List(_, self_type) => {
+                if let Type::List(_, other_type) = other {
+                    self_type.ignore_span_equal(other_type)
+                } else {
+                    false
+                }
+            }
+            Type::Tup(_, self_types) => {
+                if let Type::Tup(_, other_types) = other {
+                    self_types
+                        .iter()
+                        .zip(other_types)
+                        .map(|(x, y)| x.ignore_span_equal(y))
+                        .all(|x| x)
+                } else {
+                    false
+                }
+            }
+            Type::Func(_, params, rt) => {
+                if let Type::Func(_, other_params, other_rt) = other {
+                    if !params
+                        .iter()
+                        .zip(other_params)
+                        .map(|(x, y)| x.ignore_span_equal(y))
+                        .all(|x| x)
+                    {
+                        return false;
+                    }
+
+                    rt.ignore_span_equal(other_rt)
+                } else {
+                    false
+                }
+            }
+            Type::Named(_, typ) => {
+                if let Type::Named(_, other_type) = other {
+                    typ == other_type
+                } else {
+                    false
+                }
+            }
+            Type::Unknown(_) => true,
+        }
+    }
+
     pub fn get_span(&self) -> &Span {
         match self {
             Self::Int(span) => span,
@@ -29,6 +82,7 @@ impl Type {
             Self::Tup(span, _) => span,
             Self::Func(span, _, _) => span,
             Self::Named(span, _) => span,
+            Self::Unknown(span) => span,
         }
     }
 
@@ -73,6 +127,7 @@ impl Type {
             Type::Named(_, name) => {
                 interner.resolve(*name).unwrap().to_string()
             }
+            Type::Unknown(_) => unimplemented!(),
         }
     }
 }

@@ -429,10 +429,13 @@ impl<'a> Parser<'a> {
 
         self.next();
 
+        let span = combine(&span, &self.lexer.span());
+
         Ok(TopLevelExpr::EnumDef(Box::new(EnumDef {
             name: self.interner.get_or_intern(enum_name),
             variants: enum_vars,
-            span: combine(&span, &self.lexer.span()),
+            span: span.clone(),
+            type_: Type::Unknown(span),
         })))
     }
 
@@ -457,7 +460,7 @@ impl<'a> Parser<'a> {
         Ok(StructFieldDef {
             name: self.interner.get_or_intern(field_name),
             type_: field_type,
-            span: combine(&span, &self.lexer.span()),
+            span,
         })
     }
 
@@ -514,10 +517,13 @@ impl<'a> Parser<'a> {
 
         self.next();
 
+        let span = combine(&span, &self.lexer.span());
+
         Ok(TopLevelExpr::StructDef(Box::new(StructDef {
             name: self.interner.get_or_intern(struct_name),
             fields: struct_fields,
-            span: combine(&span, &self.lexer.span()),
+            span: span.clone(),
+            type_: Type::Unknown(span),
         })))
     }
 
@@ -654,10 +660,15 @@ impl<'a> Parser<'a> {
             rec,
             name: self.interner.get_or_intern(func_name),
             closure: Closure {
-                parameters: params,
-                return_type,
+                parameters: params.clone(),
+                return_type: return_type.clone(),
                 body,
                 span: span.clone(),
+                type_: Type::Func(
+                    span.clone(),
+                    params.into_iter().map(|p| p.type_.clone()).collect(),
+                    return_type.into(),
+                ),
             },
             span,
         })))
@@ -834,7 +845,7 @@ impl<'a> Parser<'a> {
         Ok(Expr::AssignVar(Box::new(AssignVar {
             left,
             value: right_val,
-            type_: None,
+            type_: Type::Unknown(span.clone()),
             span: combine(&span, &self.lexer.span()),
         })))
     }
@@ -851,14 +862,20 @@ impl<'a> Parser<'a> {
 
         let bin_op = BinaryOp { kind: bin_op_kind, span: op_span };
 
-        let bin =
-            Expr::binary(expr.clone(), bin_op, self.parse_expression()?, None);
+        let span = combine(&span, &self.lexer.span());
+
+        let bin = Expr::binary(
+            expr.clone(),
+            bin_op,
+            self.parse_expression()?,
+            Type::Unknown(span.clone()),
+        );
 
         Ok(Expr::AssignVar(Box::new(AssignVar {
             left: expr,
             value: bin,
-            type_: None,
-            span: combine(&span, &self.lexer.span()),
+            type_: Type::Unknown(span.clone()),
+            span,
         })))
     }
 
@@ -874,7 +891,7 @@ impl<'a> Parser<'a> {
                 expr,
                 BinaryOp { kind: BinaryOpKind::Or, span: span.clone() },
                 self.parse_and()?,
-                Some(Type::Bool(span)),
+                Type::Bool(span),
             )
         }
 
@@ -893,7 +910,7 @@ impl<'a> Parser<'a> {
                 expr,
                 BinaryOp { kind: BinaryOpKind::And, span: span.clone() },
                 self.parse_eq()?,
-                Some(Type::Bool(span)),
+                Type::Bool(span),
             )
         }
 
@@ -914,7 +931,7 @@ impl<'a> Parser<'a> {
                 expr,
                 bin_op,
                 self.parse_compare()?,
-                Some(Type::Bool(span)),
+                Type::Bool(span),
             );
         }
 
@@ -938,7 +955,7 @@ impl<'a> Parser<'a> {
                 expr,
                 bin_op,
                 self.parse_term()?,
-                Some(Type::Bool(span)),
+                Type::Bool(span),
             );
         }
 
@@ -951,11 +968,16 @@ impl<'a> Parser<'a> {
         while matches!(self.current, Ok(Token::Minus) | Ok(Token::Plus)) {
             let span = self.lexer.span();
             let bin_op_kind = BinaryOpKind::from(self.current()?);
-            let bin_op = BinaryOp { kind: bin_op_kind, span };
+            let bin_op = BinaryOp { kind: bin_op_kind, span: span.clone() };
 
             self.next();
 
-            expr = Expr::binary(expr, bin_op, self.parse_factor()?, None);
+            expr = Expr::binary(
+                expr,
+                bin_op,
+                self.parse_factor()?,
+                Type::Unknown(span),
+            );
         }
 
         Ok(expr)
@@ -970,11 +992,16 @@ impl<'a> Parser<'a> {
         ) {
             let span = self.lexer.span();
             let bin_op_kind = BinaryOpKind::from(self.current()?);
-            let bin_op = BinaryOp { kind: bin_op_kind, span };
+            let bin_op = BinaryOp { kind: bin_op_kind, span: span.clone() };
 
             self.next();
 
-            expr = Expr::binary(expr, bin_op, self.parse_unary()?, None);
+            expr = Expr::binary(
+                expr,
+                bin_op,
+                self.parse_unary()?,
+                Type::Unknown(span),
+            );
         }
 
         Ok(expr)
@@ -987,9 +1014,9 @@ impl<'a> Parser<'a> {
             let unary_op_kind = UnaryOpKind::from(self.current()?);
             let unary_op = UnaryOp { kind: unary_op_kind, span: span.clone() };
             let type_ = if let UnaryOpKind::NegBool = unary_op_kind {
-                Some(Type::Bool(span))
+                Type::Bool(span)
             } else {
-                None
+                Type::Unknown(span)
             };
 
             self.next();
@@ -1119,10 +1146,13 @@ impl<'a> Parser<'a> {
 
         self.next();
 
+        let span = combine(&span, &self.lexer.span());
+
         Ok(Expr::ModAccess(Box::new(ModAccess {
             module,
             constant,
-            span: combine(&span, &self.lexer.span()),
+            span: span.clone(),
+            type_: Type::Unknown(span),
         })))
     }
 
@@ -1160,10 +1190,13 @@ impl<'a> Parser<'a> {
 
         self.next();
 
+        let span = combine(&span, &self.lexer.span());
+
         Ok(Expr::StructFieldAccess(Box::new(StructFieldAccess {
             source,
             field,
-            span: combine(&span, &self.lexer.span()),
+            span: span.clone(),
+            type_: Type::Unknown(span),
         })))
     }
 
@@ -1309,10 +1342,13 @@ impl<'a> Parser<'a> {
 
         self.next();
 
+        let span = combine(&span, &self.lexer.span());
+
         Ok(Expr::Index(Box::new(Index {
             source,
             index,
-            span: combine(&span, &self.lexer.span()),
+            span: span.clone(),
+            type_: Type::Unknown(span),
         })))
     }
 
@@ -1371,10 +1407,13 @@ impl<'a> Parser<'a> {
             args.push(self.parse_expression()?);
         }
 
+        let span = combine(&span, &self.lexer.span());
+
         Ok(Expr::Call(Box::new(Call {
             callee,
             arguments: args,
-            span: combine(&span, &self.lexer.span()),
+            span: span.clone(),
+            type_: Type::Unknown(span),
         })))
     }
 
@@ -1435,7 +1474,11 @@ impl<'a> Parser<'a> {
             Ok(Token::Ident(ref ident)) => {
                 let ident = self.interner.get_or_intern(ident);
                 self.next();
-                Ok(Expr::Ident(Box::new(Ident { name: ident, span })))
+                Ok(Expr::Ident(Box::new(Ident {
+                    name: ident,
+                    span: span.clone(),
+                    type_: Type::Unknown(span),
+                })))
             }
 
             Ok(Token::BackSlash) => self.parse_closure(),
@@ -1531,10 +1574,13 @@ impl<'a> Parser<'a> {
 
         self.next();
 
+        let span = combine(&span, &self.lexer.span());
+
         Ok(Expr::Match(Box::new(Match {
             expression: expr,
             expressions: cases,
-            span: combine(&span, &self.lexer.span()),
+            span: span.clone(),
+            type_: Type::Unknown(span),
         })))
     }
 
@@ -1680,7 +1726,8 @@ impl<'a> Parser<'a> {
             Token::Colon => self.parse_enum_var_pattern(span, ident),
             _ => Ok(Pattern::Ident(Box::new(Ident {
                 name: self.interner.get_or_intern(ident),
-                span,
+                span: span.clone(),
+                type_: Type::Unknown(span),
             }))),
         }
     }
@@ -2144,11 +2191,14 @@ impl<'a> Parser<'a> {
             vec![self.parse_expression()?]
         };
 
+        let span = combine(&span, &self.lexer.span());
+
         Ok(Expr::If(Box::new(If {
             condition: cond,
             then: then_body,
             else_: else_body,
-            span: combine(&span, &self.lexer.span()),
+            span: span.clone(),
+            type_: Type::Unknown(span),
         })))
     }
 
@@ -2204,11 +2254,18 @@ impl<'a> Parser<'a> {
             self.parse_curly_body()?
         };
 
+        let span = combine(&span, &self.lexer.span());
+
         Ok(Expr::Closure(Box::new(Closure {
-            parameters: params,
-            return_type,
+            parameters: params.clone(),
+            return_type: return_type.clone(),
             body,
-            span: combine(&span, &self.lexer.span()),
+            span: span.clone(),
+            type_: Type::Func(
+                span,
+                params.into_iter().map(|p| p.type_).collect(),
+                return_type.into(),
+            ),
         })))
     }
 
@@ -2244,9 +2301,12 @@ impl<'a> Parser<'a> {
 
         self.next();
 
+        let span = combine(&span, &self.lexer.span());
+
         Ok(Expr::List(Box::new(List {
             elements,
-            span: combine(&span, &self.lexer.span()),
+            span: span.clone(),
+            type_: Type::Unknown(span),
         })))
     }
 
@@ -2297,7 +2357,11 @@ impl<'a> Parser<'a> {
             throw_error!(span.clone(), "tuple must contain at least one value")
         }
 
-        Ok(Expr::Tuple(Box::new(Tuple { values, span })))
+        Ok(Expr::Tuple(Box::new(Tuple {
+            values,
+            span: span.clone(),
+            type_: Type::Unknown(span),
+        })))
     }
 }
 
@@ -2488,7 +2552,8 @@ mod tests {
                     EnumVarDef {
                         name: interner.get_or_intern("None"), types: vec![], span: 29..35 }
                 ],
-                span: 0..35
+                span: 0..35,
+                type_: Type::Unknown(0..35)
             }))
         );
 
@@ -2523,7 +2588,8 @@ mod tests {
             expected: TopLevelExpr::StructDef(Box::new(StructDef {
                 name: interner.get_or_intern("Person"),
                 fields: vec![],
-                span: 0..16
+                span: 0..16,
+                type_: Type::Unknown(0..16)
             }))
         );
 
@@ -2535,15 +2601,16 @@ mod tests {
                     StructFieldDef {
                         name: interner.get_or_intern("name"),
                         type_: Type::Str(21..24),
-                        span: 16..25
+                        span: 16..20
                     },
                     StructFieldDef {
                         name: interner.get_or_intern("age"),
                         type_: Type::Int(30..33),
-                        span: 26..35
+                        span: 26..29
                     }
                 ],
-                span: 0..35
+                span: 0..35,
+                type_: Type::Unknown(0..35)
             }))
         );
 
@@ -2585,6 +2652,11 @@ mod tests {
                     return_type: Type::Void(22..26),
                     body: vec![],
                     span: 0..29,
+                    type_: Type::Func(
+                        0..29,
+                        vec![Type::List(15..20, Box::new(Type::Str(17..20)))],
+                        Box::new(Type::Void(22..26))
+                    )
                 },
                 span: 0..29
             })),
@@ -2604,7 +2676,12 @@ mod tests {
                             type_: Type::Void(20..24)
                         }))
                     ],
-                    span: 0..25
+                    span: 0..25,
+                    type_: Type::Func(
+                        0..25,
+                        vec![],
+                        Box::new(Type::Void(12..16))
+                    )
                 },
                 span: 0..25
             }))
@@ -2685,6 +2762,7 @@ mod tests {
                         })),
                     ],
                     span: 45..55,
+                    type_: Type::Unknown(45..55)
                 })),
                 Expr::Tuple(Box::new(Tuple {
                     values: vec![
@@ -2705,10 +2783,12 @@ mod tests {
                         })),
                     ],
                     span: 56..75,
+                    type_: Type::Unknown(56..75)
                 })),
                 Expr::Ident(Box::new(Ident {
                     name: interner.get_or_intern("some_var"),
                     span: 76..84,
+                    type_: Type::Unknown(76..84)
                 }))
             ]
         );
@@ -2756,10 +2836,12 @@ mod tests {
                                     type_: Type::Named(59..64, interner.get_or_intern("list"))
                                 }))
                             ],
-                            span: 46..64
+                            span: 46..64,
+                            type_: Type::Unknown(46..64)
                         }))
                     ],
-                    span: 28..64
+                    span: 28..64,
+                    type_: Type::Unknown(28..64)
                 })),
                 Expr::StructInit(Box::new(StructInit {
                     name: interner.get_or_intern("Person"),
@@ -2787,6 +2869,7 @@ mod tests {
                             value: Expr::Ident(Box::new(Ident {
                                 name: interner.get_or_intern("stuff"),
                                 span: 101..106,
+                                type_: Type::Unknown(101..106)
                             })),
                             span: 95..108
                         }
@@ -2809,15 +2892,18 @@ mod tests {
                     callee: Expr::Ident(Box::new(Ident {
                         name: interner.get_or_intern("length"),
                         span: 31..37,
+                        type_: Type::Unknown(31..37)
                     })),
                     arguments: vec![
                         Expr::StructFieldAccess(Box::new(StructFieldAccess {
                             source: interner.get_or_intern("person"),
                             field: interner.get_or_intern("name"),
                             span: 25..31,
+                            type_: Type::Unknown(25..31)
                         }))
                     ],
                     span: 37..40,
+                    type_: Type::Unknown(37..40)
                 }))
             ]
         );
@@ -2835,6 +2921,7 @@ mod tests {
                         module: interner.get_or_intern("fmt"),
                         constant: interner.get_or_intern("println"),
                         span: 22..32,
+                        type_: Type::Unknown(22..32)
                     })),
                     arguments: vec![
                         Expr::Str(Box::new(StrLiteral {
@@ -2843,7 +2930,8 @@ mod tests {
                             type_: Type::Str(32..45)
                         }))
                     ],
-                    span: 31..47
+                    span: 31..47,
+                    type_: Type::Unknown(31..47),
                 }))
             ]
         );
@@ -2869,9 +2957,15 @@ mod tests {
                         Expr::Ident(Box::new(Ident {
                             name: interner.get_or_intern("name"),
                             span: 38..42,
+                            type_: Type::Unknown(38..42)
                         }))
                     ],
-                    span: 19..43
+                    span: 19..43,
+                    type_: Type::Func(
+                        19..43,
+                        vec![Type::Str(26..29)],
+                        Box::new(Type::Str(31..34))
+                    )
                 }))
             ]
         );
@@ -2884,7 +2978,7 @@ mod tests {
                         FuncParam {
                             name: interner.get_or_intern("name"),
                             type_: Type::Str(26..29),
-                            span: 21..30
+                            span: 21..30,
                         }
                     ],
                     return_type: Type::Str(31..34),
@@ -2892,9 +2986,15 @@ mod tests {
                         Expr::Ident(Box::new(Ident {
                             name: interner.get_or_intern("name"),
                             span: 37..41,
+                            type_: Type::Unknown(37..41)
                         }))
                     ],
-                    span: 19..45
+                    span: 19..45,
+                    type_: Type::Func(
+                        19..45,
+                        vec![Type::Str(26..29)],
+                        Box::new(Type::Str(31..34))
+                    )
                 }))
             ]
         );
@@ -2930,7 +3030,7 @@ mod tests {
                                     kind: BinaryOpKind::Sub,
                                     span: 26..27
                                 },
-                                type_: None,
+                                type_: Type::Unknown(26..27),
                                 span: 24..29,
                             })),
                             span: 23..32
@@ -2944,14 +3044,14 @@ mod tests {
                             kind: BinaryOpKind::Div,
                             span: 31..32
                         },
-                        type_: None,
+                        type_: Type::Unknown(31..32),
                         span: 23..34,
                     })),
                     operator: BinaryOp {
                         kind: BinaryOpKind::Add,
                         span: 21..22
                     },
-                    type_: None,
+                    type_: Type::Unknown(21..22),
                     span: 19..34,
                 }))
             ],
@@ -2971,7 +3071,7 @@ mod tests {
                         19..22
                     },
                     span: 19..28,
-                    type_: Some(Type::Bool(19..22))
+                    type_: Type::Bool(19..22)
                 })),
                 Expr::Unary(Box::new(Unary {
                     rhs: Expr::Group(Box::new(Group {
@@ -2986,7 +3086,7 @@ mod tests {
                         kind: UnaryOpKind::NegNum,
                         span: 30..31
                     },
-                    type_: None,
+                    type_: Type::Unknown(30..31),
                     span: 30..37,
                 }))
             ]
@@ -3014,13 +3114,14 @@ mod tests {
                     left: Expr::Ident(Box::new(Ident {
                         name: interner.get_or_intern("a"),
                         span: 34..35,
+                        type_: Type::Unknown(34..35)
                     })),
                     value: Expr::Int(Box::new(IntLiteral {
                         value: 123,
                         span: 38..41,
                         type_: Type::Int(38..41)
                     })),
-                    type_: None,
+                    type_: Type::Unknown(34..35),
                     span: 34..42,
                 })),
                 Expr::DefVar(Box::new(DefVar {
@@ -3028,6 +3129,7 @@ mod tests {
                     value: Expr::Ident(Box::new(Ident {
                         name: interner.get_or_intern("a"),
                         span: 51..52,
+                        type_: Type::Unknown(51..52)
                     })),
                     span: 43..53,
                     type_: Type::Named(47..48, interner.get_or_intern("b"))
@@ -3047,6 +3149,7 @@ mod tests {
                     source: Expr::Ident(Box::new(Ident {
                         name: interner.get_or_intern("list"),
                         span: 19..23,
+                        type_: Type::Unknown(19..23)
                     })),
                     index: Expr::Int(Box::new(IntLiteral {
                         value: 0,
@@ -3054,6 +3157,7 @@ mod tests {
                         type_: Type::Int(24..25)
                     })),
                     span: 23..27,
+                    type_: Type::Unknown(23..27)
                 })),
                 Expr::Index(Box::new(Index {
                     source: Expr::Tuple(Box::new(Tuple {
@@ -3070,11 +3174,13 @@ mod tests {
                             }))
                         ],
                         span: 28..36,
+                        type_: Type::Unknown(28..36)
                     })),
                     index: Expr::Binary(Box::new(Binary {
                         lhs: Expr::Ident(Box::new(Ident {
                             name: interner.get_or_intern("idx"),
                             span: 36..39,
+                            type_: Type::Unknown(36..39)
                         })),
                         rhs: Expr::Int(Box::new(IntLiteral {
                             value: 1,
@@ -3086,9 +3192,10 @@ mod tests {
                             span: 40..41
                         },
                         span: 36..43,
-                        type_: None
+                        type_: Type::Unknown(40..41)
                     })),
                     span: 35..45,
+                    type_: Type::Unknown(35..45)
                 }))
             ]
         );
@@ -3119,7 +3226,8 @@ mod tests {
                             type_: Type::Void(46..50)
                         }))
                     ],
-                    span: 19..55
+                    span: 19..55,
+                    type_: Type::Unknown(19..55)
                 }))
             ]
         );
@@ -3145,7 +3253,8 @@ mod tests {
                             type_: Type::Void(45..49)
                         }))
                     ],
-                    span: 19..52
+                    span: 19..52,
+                    type_: Type::Unknown(19..52)
                 }))
             ]
         );
@@ -3174,6 +3283,7 @@ mod tests {
                             }))
                         ],
                         span: 27..58,
+                        type_: Type::Unknown(27..58)
                     })),
                     span: 19..58,
                     type_: Type::Named(23..24, interner.get_or_intern("a"))
@@ -3364,6 +3474,7 @@ r#"func main() void {
                                 lhs: Expr::Ident(Box::new(Ident {
                                     name: interner.get_or_intern("n"),
                                     span: 32..33,
+                                    type_: Type::Unknown(32..33)
                                 })),
                                 rhs: Expr::Int(Box::new(IntLiteral {
                                     value: 3,
@@ -3375,12 +3486,13 @@ r#"func main() void {
                                     span: 34..35
                                 },
                                 span: 32..37,
-                                type_: None
+                                type_: Type::Unknown(34..35)
                             })),
                             Expr::Binary(Box::new(Binary {
                                 lhs: Expr::Ident(Box::new(Ident {
                                     name: interner.get_or_intern("n"),
                                     span: 39..40,
+                                    type_: Type::Unknown(39..40)
                                 })),
                                 rhs: Expr::Int(Box::new(IntLiteral {
                                     value: 5,
@@ -3392,10 +3504,11 @@ r#"func main() void {
                                     span: 41..42
                                 },
                                 span: 39..44,
-                                type_: None
+                                type_: Type::Unknown(41..42)
                             }))
                         ],
                         span: 30..46,
+                        type_: Type::Unknown(30..46)
                     })),
                     expressions: vec![
                         MatchCase {
@@ -3476,20 +3589,24 @@ r#"func main() void {
                                     callee: Expr::Ident(Box::new(Ident {
                                         name: interner.get_or_intern("to_str"),
                                         span: 155..161,
+                                        type_: Type::Unknown(155..161)
                                     })),
                                     arguments: vec![
                                         Expr::Ident(Box::new(Ident {
                                             name: interner.get_or_intern("n"),
                                             span: 153..154,
+                                            type_: Type::Unknown(153..154,)
                                         }))
                                     ],
-                                    span: 161..164
+                                    span: 161..164,
+                                    type_: Type::Unknown(161..164)
                                 }))
                             ],
                             span: 149..172
                         }
                     ],
-                    span: 23..174
+                    span: 23..174,
+                    type_: Type::Unknown(23..174)
                 })),
             ]
         );
@@ -3508,7 +3625,8 @@ r#"func main() void {
                         type_: Type::Void(30..34)
                     })),
                     expressions: vec![],
-                    span: 23..40
+                    span: 23..40,
+                    type_: Type::Unknown(23..40)
                 }))
             ]
         );
@@ -3538,11 +3656,13 @@ r#"func main() void {
                             pattern: Pattern::Ident(Box::new(Ident {
                                 name: interner.get_or_intern("n"),
                                 span: 46..47,
+                                type_: Type::Unknown(46..47)
                             })),
                             guard: Some(Expr::Binary(Box::new(Binary {
                                 lhs: Expr::Ident(Box::new(Ident {
                                     name: interner.get_or_intern("n"),
                                     span: 52..53,
+                                    type_: Type::Unknown(52..53)
                                 })),
                                 rhs: Expr::Int(Box::new(IntLiteral {
                                     value: 0,
@@ -3554,7 +3674,7 @@ r#"func main() void {
                                     span: 54..56
                                 },
                                 span: 52..58,
-                                type_: Some(Type::Bool(54..56))
+                                type_: Type::Bool(54..56)
                             }))),
                             body: vec![
                                 Expr::Void(Box::new(Void {
@@ -3570,10 +3690,12 @@ r#"func main() void {
                                     Pattern::Ident(Box::new(Ident {
                                         name: interner.get_or_intern("a"),
                                         span: 80..81,
+                                        type_: Type::Unknown(80..81)
                                     })),
                                     Pattern::Ident(Box::new(Ident {
                                         name: interner.get_or_intern("b"),
                                         span: 83..84,
+                                        type_: Type::Unknown(83..84)
                                     }))
                                 ],
                                 span: 79..88
@@ -3582,17 +3704,19 @@ r#"func main() void {
                                 lhs: Expr::Ident(Box::new(Ident {
                                     name: interner.get_or_intern("a"),
                                     span: 90..91,
+                                    type_: Type::Unknown(90..91)
                                 })),
                                 rhs: Expr::Ident(Box::new(Ident {
                                     name: interner.get_or_intern("b"),
                                     span: 95..96,
+                                    type_: Type::Unknown(95..96)
                                 })),
                                 operator: BinaryOp {
                                     kind: BinaryOpKind::Eq,
                                     span: 92..94
                                 },
                                 span: 90..96,
-                                type_: Some(Type::Bool(92..94))
+                                type_: Type::Bool(92..94)
                             }))),
                             body: vec![
                                 Expr::Void(Box::new(Void {
@@ -3603,7 +3727,8 @@ r#"func main() void {
                             span: 79..113
                         }
                     ],
-                    span: 23..115
+                    span: 23..115,
+                    type_: Type::Unknown(23..115)
                 })),
             ]
         );
@@ -3694,9 +3819,11 @@ r#"func main() void {
                                     }))
                                 ],
                                 span: 153..160,
+                                type_: Type::Unknown(153..160)
                             }))
                         ],
                         span: 152..161,
+                        type_: Type::Unknown(152..161)
                     })),
                     type_: Type::List(142..149, Box::new(Type::List(144..149, Box::new(Type::Int(146..149))))),
                     span: 136..161
@@ -3719,6 +3846,7 @@ r#"func main() void {
                                     }))
                                 ],
                                 span: 196..204,
+                                type_: Type::Unknown(196..204)
                             })),
                             Expr::Str(Box::new(StrLiteral {
                                 value: interner.get_or_intern("hello"),
@@ -3726,7 +3854,8 @@ r#"func main() void {
                                 type_: Type::Str(205..212)
                             }))
                         ],
-                        span: 194..214
+                        span: 194..214,
+                        type_: Type::Unknown(194..214)
                     })),
                     type_: Type::Tup(
                         172..193,
