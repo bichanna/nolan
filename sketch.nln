@@ -17,19 +17,19 @@ func main(args []str) void {
 
 
 /// Enums
-enum list[A] {
+enum list @a {
     Nil,
-    Cons(A, List[A])
+    Cons(@a, List[@a])
 }
 
-enum option[T] {
+enum option @t {
     None,
-    Some(T)
+    Some(@t)
 }
 
-enum result[T, E] {
-    Ok(T),
-    Err(E)
+enum result @t, @e {
+    Ok(@t),
+    Err(@e)
 }
 
 let linked_list = list:Cons(123) <. list:Cons(321) <. list:Nil;
