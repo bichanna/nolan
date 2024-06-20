@@ -4,4 +4,6 @@
  - [ ] [Neko](https://en.wikipedia.org/wiki/Neko_(software))
  - [ ] Nolan compiler
  - [ ] Raytracer
+ - [ ] Raycaster
+ - [ ] Conway's Game of Life
  - [ ] Fullstack web framework
