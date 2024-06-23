@@ -184,16 +184,9 @@ impl Node for ModAccess {
 }
 
 #[derive(Debug, Clone, PartialEq)]
-pub struct EnumVarDef {
-    pub name: SymbolU32,
-    pub types: Vec<Type>,
-    pub span: Span,
-}
-
-#[derive(Debug, Clone, PartialEq)]
 pub struct EnumDef {
     pub name: SymbolU32,
-    pub variants: Vec<EnumVarDef>,
+    pub variants: Vec<SymbolU32>,
     pub span: Span,
     pub type_: Type,
 }
@@ -556,14 +549,14 @@ impl Node for Index {
 }
 
 #[derive(Debug, Clone, PartialEq)]
-pub struct Use {
+pub struct Import {
     pub module: SymbolU32,
     pub imports: Option<Vec<SymbolU32>>,
     pub span: Span,
     pub type_: Type,
 }
 
-impl Node for Use {
+impl Node for Import {
     fn get_span(&self) -> &Span {
         &self.span
     }
@@ -641,92 +634,6 @@ impl Node for Return {
 }
 
 #[derive(Debug, Clone, PartialEq)]
-pub struct EnumVarInitPattern {
-    pub access: EnumVarAccess,
-    pub arguments: Vec<Pattern>,
-    pub span: Span,
-}
-
-#[derive(Debug, Clone, PartialEq)]
-pub enum EnumVarPattern {
-    VarAccess(Box<EnumVarAccess>),
-    VarInit(Box<EnumVarInitPattern>),
-}
-
-#[derive(Debug, Clone, PartialEq)]
-pub struct FieldPattern {
-    pub name: SymbolU32,
-    pub pattern: Pattern,
-    pub span: Span,
-}
-
-#[derive(Debug, Clone, PartialEq)]
-pub struct StructPattern {
-    pub source: SymbolU32,
-    pub fields: Vec<FieldPattern>,
-    pub span: Span,
-}
-
-#[derive(Debug, Clone, PartialEq)]
-pub struct ListPattern {
-    pub elements: Vec<Pattern>,
-    pub span: Span,
-}
-
-#[derive(Debug, Clone, PartialEq)]
-pub struct TuplePattern {
-    pub values: Vec<Pattern>,
-    pub span: Span,
-}
-
-#[derive(Debug, Clone, PartialEq)]
-pub struct OrPattern {
-    pub patterns: Vec<Pattern>,
-    pub span: Span,
-}
-
-#[derive(Debug, Clone, PartialEq)]
-pub enum Pattern {
-    Ident(Box<Ident>),
-    Variant(Box<EnumVarPattern>),
-    Struct(Box<StructPattern>),
-    Int(Box<IntLiteral>),
-    Float(Box<FloatLiteral>),
-    Str(Box<StrLiteral>),
-    Bool(Box<BoolLiteral>),
-    List(Box<ListPattern>),
-    Tuple(Box<TuplePattern>),
-    Wildcard(Span),
-    Or(Box<OrPattern>),
-}
-
-#[derive(Debug, Clone, PartialEq)]
-pub struct MatchCase {
-    pub pattern: Pattern,
-    pub guard: Option<Expr>,
-    pub body: Vec<Expr>,
-    pub span: Span,
-}
-
-#[derive(Debug, Clone, PartialEq)]
-pub struct Match {
-    pub expression: Expr,
-    pub expressions: Vec<MatchCase>,
-    pub span: Span,
-    pub type_: Type,
-}
-
-impl Node for Match {
-    fn get_span(&self) -> &Span {
-        &self.span
-    }
-
-    fn get_type(&self) -> &Type {
-        &self.type_
-    }
-}
-
-#[derive(Debug, Clone, PartialEq)]
 pub struct Void {
     pub span: Span,
     pub type_: Type,
@@ -768,7 +675,6 @@ pub enum Expr {
     While(Box<While>),
     Break(Box<Break>),
     Return(Box<Return>),
-    Match(Box<Match>),
     Void(Box<Void>),
 }
 
@@ -829,7 +735,6 @@ impl Node for Expr {
             Self::While(ref node) => node.get_span(),
             Self::Break(ref node) => node.get_span(),
             Self::Return(ref node) => node.get_span(),
-            Self::Match(ref node) => node.get_span(),
             Self::Void(ref node) => node.get_span(),
         }
     }
@@ -860,7 +765,6 @@ impl Node for Expr {
             Self::While(ref node) => node.get_type(),
             Self::Break(ref node) => node.get_type(),
             Self::Return(ref node) => node.get_type(),
-            Self::Match(ref node) => node.get_type(),
             Self::Void(ref node) => node.get_type(),
         }
     }
@@ -872,7 +776,7 @@ pub enum TopLevelExpr {
     StructDef(Box<StructDef>),
     Module(Box<Module>),
     Func(Box<Func>),
-    Use(Box<Use>),
+    Import(Box<Import>),
     Export(Box<Export>),
 }
 
@@ -883,7 +787,7 @@ impl Node for TopLevelExpr {
             Self::StructDef(ref node) => node.get_span(),
             Self::Module(ref node) => node.get_span(),
             Self::Func(ref node) => node.get_span(),
-            Self::Use(ref node) => node.get_span(),
+            Self::Import(ref node) => node.get_span(),
             Self::Export(ref node) => node.get_span(),
         }
     }
@@ -894,7 +798,7 @@ impl Node for TopLevelExpr {
             Self::StructDef(ref node) => node.get_type(),
             Self::Module(ref node) => node.get_type(),
             Self::Func(ref node) => node.get_type(),
-            Self::Use(ref node) => node.get_type(),
+            Self::Import(ref node) => node.get_type(),
             Self::Export(ref node) => node.get_type(),
         }
     }

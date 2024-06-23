@@ -3,65 +3,63 @@
 
 
 /// Import statements
-use fmt;
-use fmt [println];
+import fmt;
+import fmt [println];
 
 func main(args []str) void {
     let name = "Nobu";
-    "Hello world".println();
+    "Hello world"->println();
 
     let names = ["Nobu", "Anna"];
-    // TODO: names.for_each() in (name) { name.println(); };
-    names.for_each() <. \(name str) void { name.println(); };
+    for (name in ref names) {
+        name->fmt::println();
+    }
 }
 
 
 /// Enums
-enum list @a {
-    Nil,
-    Cons(@a, List[@a])
+enum Week {
+  Monday,
+  Tuesday,
+  Wednesday,
+  Thursday,
+  Friday,
+  Saturday,
+  Sunday
 }
 
-enum option @t {
-    None,
-    Some(@t)
-}
-
-enum result @t, @e {
-    Ok(@t),
-    Err(@e)
-}
-
-let linked_list = list:Cons(123) <. list:Cons(321) <. list:Nil;
+let today = Week@Monday;
 
 
 /// Structs
-struct Person {
+struct Person[T] {
     age int,
-    name str
+    name str,
+    randomData T
 }
 
-let nobu Person = Person { age 18, name "Nobu" };
-"{}".println(nobu'name);
+let nobu Person = Person[T]{ age 18, name "Nobu", randomData 123 };
+"{}"->println(nobu.name);
 
 
 /// Functions
 pure func fizzbuzz(n int) str {
-    match (#(n % 3, n % 5)) {
-        #(0, 0) then "fizz buzz",
-        #(0, _) then "fizz",
-        #(_, 0) { "buzz"; },
-        _ { n.to_str(); }
+    switch #(n % 3, n % 5) { // a bit special switch statements
+        case #(0, 0) { "fizz buzz"; },
+        case #(0, _) "fizz",
+        case #(_, 0) "buzz",
+        else n->toStr()
     }
 }
 
-pure func greet(name option[str]) str do
-    "Hello, {}!".fmt::format() <. name.unwrap_or("guest")
+pure func greet(name <str, void>) str {
+    "Hello, {}!".fmt::format() <. if name == void { "there" } else { name };
+}
 
-func check_credentials() bool {
-    let username = "Username: ".io::get_line();
-    let password = "Password: ".io::get_line_confidential();
-    password.is_right_password_for(username);
+func checkCredentials() bool {
+    let username = "Username: "->io::getLine();
+    let password = "Password: "->io::getLineConfidential();
+    password->isRightPasswordFor?(username);
 }
 
 
@@ -74,27 +72,16 @@ if (blah) {
     // in multiple lines
 };
 
-if (blah) then
-    // do something in one line
-else
-    // do something in one line
+let abc = if (blah) then { 123; } else { 321; };
 
-let abc = if blah then 123; else 321;
-
-
-/// When statements
-when (blah) {
-    // do something
-} else {
-    // do something else
-}
-
-when (blah) then
-    // do something
-else
-    // do something else
 
 /// While statements
 while (condition) {
+    // do something
+}
+
+
+/// For statements
+for (name in names) {
     // do something
 }

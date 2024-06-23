@@ -47,8 +47,8 @@ pub enum Token {
     #[token("\\")]
     BackSlash,
 
-    #[token("'")]
-    SingleQuote,
+    #[token(".")]
+    Dot,
 
     #[token("|")]
     MatchOr,
@@ -94,15 +94,14 @@ pub enum Token {
 
     #[token(">=")]
     GE,
-
     #[token("<")]
     LT,
 
     #[token("<=")]
     LE,
 
-    #[token("<.")]
-    LDot,
+    #[token("<-")]
+    LTMinus,
 
     #[token("!=")]
     NotEq,
@@ -113,14 +112,14 @@ pub enum Token {
     #[token("==")]
     DEq,
 
-    #[token(".")]
-    Dot,
+    #[token("->")]
+    MinusGT,
 
     #[token(";")]
     SemiColon,
 
-    #[token(":")]
-    Colon,
+    #[token("@")]
+    At,
 
     #[token("::")]
     DColon,
@@ -141,20 +140,17 @@ pub enum Token {
     #[token("then")]
     Then,
 
-    #[token("when")]
-    When,
-
-    #[token("do")]
-    Do,
-
     #[token("rec")]
     Rec,
 
     #[token("func")]
     Func,
 
-    #[token("match")]
-    Match,
+    #[token("switch")]
+    Switch,
+
+    #[token("case")]
+    Case,
 
     #[token("let")]
     Let,
@@ -168,6 +164,12 @@ pub enum Token {
     #[token("while")]
     While,
 
+    #[token("for")]
+    For,
+
+    #[token("in")]
+    In,
+
     #[token("break")]
     Break,
 
@@ -177,8 +179,8 @@ pub enum Token {
     #[token("return")]
     Return,
 
-    #[token("use")]
-    Use,
+    #[token("import")]
+    Import,
 
     #[token("export")]
     Export,
@@ -218,26 +220,27 @@ mod tests {
 
     #[test]
     fn keywords() {
-        let src = "not if else then when do rec func match let enum struct while break continue return use export true false and or";
+        let src = "not if else then rec func switch case let enum struct while for in break continue return import export true false and or";
         let mut lexer = Token::lexer(src);
 
         assert_eq!(lexer.next(), Some(Ok(Token::Not)));
         assert_eq!(lexer.next(), Some(Ok(Token::If)));
         assert_eq!(lexer.next(), Some(Ok(Token::Else)));
         assert_eq!(lexer.next(), Some(Ok(Token::Then)));
-        assert_eq!(lexer.next(), Some(Ok(Token::When)));
-        assert_eq!(lexer.next(), Some(Ok(Token::Do)));
         assert_eq!(lexer.next(), Some(Ok(Token::Rec)));
         assert_eq!(lexer.next(), Some(Ok(Token::Func)));
-        assert_eq!(lexer.next(), Some(Ok(Token::Match)));
+        assert_eq!(lexer.next(), Some(Ok(Token::Switch)));
+        assert_eq!(lexer.next(), Some(Ok(Token::Case)));
         assert_eq!(lexer.next(), Some(Ok(Token::Let)));
         assert_eq!(lexer.next(), Some(Ok(Token::Enum)));
         assert_eq!(lexer.next(), Some(Ok(Token::Struct)));
         assert_eq!(lexer.next(), Some(Ok(Token::While)));
+        assert_eq!(lexer.next(), Some(Ok(Token::For)));
+        assert_eq!(lexer.next(), Some(Ok(Token::In)));
         assert_eq!(lexer.next(), Some(Ok(Token::Break)));
         assert_eq!(lexer.next(), Some(Ok(Token::Continue)));
         assert_eq!(lexer.next(), Some(Ok(Token::Return)));
-        assert_eq!(lexer.next(), Some(Ok(Token::Use)));
+        assert_eq!(lexer.next(), Some(Ok(Token::Import)));
         assert_eq!(lexer.next(), Some(Ok(Token::Export)));
         assert_eq!(lexer.next(), Some(Ok(Token::True)));
         assert_eq!(lexer.next(), Some(Ok(Token::False)));

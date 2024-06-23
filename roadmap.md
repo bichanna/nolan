@@ -14,24 +14,18 @@
  - [ ] Tail recursion.
  - [ ] If statements and expressions.
  - [ ] While loop.
- - [ ] Pattern matching.
-   - [ ] Variable / match-all patterns.
-   - [ ] Constructor patterns.
-   - [ ] Number literal patterns.
-   - [ ] `or` clause in pattern matching.
-   - [ ] Pattern guards.
-   - [ ] Completeness and redundancy checking.
+ - [ ] Switch expression.
 
 ## Types
  - [ ] Minimal type inference.
- - [ ] Product and sum type definitions: `data` and `record`.
+ - [ ] Simple `struct` and `enum`.
  - [ ] Type aliases.
  - [ ] Generics.
  - [ ] Traits.
    - [ ] Static dispatch.
 
 ## Modules
- - [ ] `use` statements.
+ - [ ] `import` statements.
  - [ ] `export` statements.
  - [ ] Relative importing of modules.
  - [ ] Import select symbols from a module.
@@ -41,10 +35,11 @@
  - [x] Lexer
  - [x] Parser
  - [ ] Type checker
+ - [ ] Single ownership
  - [ ] Backends.
    - [ ] C
    - [ ] Cranelift
-   - [ ] LLVM
+   - [ ] [Nolan VM](https://github.com/bichanna/nolan-vm)
  - [ ] LSP server.
  - [ ] Warnings when variables are unused.
 

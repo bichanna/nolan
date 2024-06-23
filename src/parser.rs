@@ -10,7 +10,6 @@ use crate::lexer::Token;
 use crate::types::Type;
 
 type ParseResult<T> = Result<T, ParseError>;
-
 type ModParseResult<T> = Result<T, Vec<ParseError>>;
 
 macro_rules! throw_error {
@@ -183,7 +182,7 @@ impl<'a> Parser<'a> {
             Token::Enum => self.parse_enum_def(),
             Token::Struct => self.parse_struct_def(),
             Token::Func | Token::Rec => self.parse_func(),
-            Token::Use => self.parse_use(),
+            Token::Import => self.parse_import(),
             Token::Export => self.parse_export(),
             _ => {
                 let current = current.clone();
@@ -329,53 +328,6 @@ impl<'a> Parser<'a> {
         }
     }
 
-    fn parse_enum_var_def(&mut self) -> ParseResult<EnumVarDef> {
-        let span = self.lexer.span();
-
-        let Token::Ident(enum_var_name) = expect!(
-            self.current()?,
-            Token::Ident(..),
-            self.lexer.span(),
-            "expected an identifier"
-        ) else {
-            unreachable!()
-        };
-
-        let enum_var_name = enum_var_name.clone();
-
-        self.next();
-
-        let mut types = Vec::<Type>::new();
-
-        if matches!(self.current, Ok(Token::LeftParen)) {
-            self.next();
-
-            while !matches!(self.current, Ok(Token::RightParen)) {
-                types.push(self.parse_type()?);
-                if !matches!(self.current, Ok(Token::Comma)) {
-                    break;
-                } else {
-                    self.next();
-                }
-            }
-
-            expect!(
-                self.current()?,
-                Token::RightParen,
-                self.lexer.span(),
-                "expected ')' after type expressions"
-            );
-
-            self.next();
-        }
-
-        Ok(EnumVarDef {
-            name: self.interner.get_or_intern(enum_var_name),
-            types,
-            span: combine(&span, &self.lexer.span()),
-        })
-    }
-
     fn parse_enum_def(&mut self) -> ParseResult<TopLevelExpr> {
         let span = self.lexer.span();
 
@@ -410,9 +362,23 @@ impl<'a> Parser<'a> {
 
         self.next();
 
-        let mut enum_vars = Vec::<EnumVarDef>::new();
+        let mut enum_vars = Vec::<SymbolU32>::new();
         while !matches!(self.current, Ok(Token::RightBrace)) {
-            enum_vars.push(self.parse_enum_var_def()?);
+            let Token::Ident(enum_var) = expect!(
+                self.current()?,
+                Token::Ident(..),
+                self.lexer.span(),
+                "expected an enum variant"
+            ) else {
+                unreachable!()
+            };
+
+            let enum_var = self.interner.get_or_intern(enum_var.clone());
+
+            self.next();
+
+            enum_vars.push(enum_var);
+
             if !matches!(self.current, Ok(Token::Comma)) {
                 break;
             } else {
@@ -647,12 +613,7 @@ impl<'a> Parser<'a> {
 
         let return_type = self.parse_type()?;
 
-        let body = if matches!(self.current, Ok(Token::Do)) {
-            self.next();
-            vec![self.parse_standalone_expression()?]
-        } else {
-            self.parse_curly_body()?
-        };
+        let body = self.parse_curly_body()?;
 
         let span = combine(&span, &self.lexer.span());
 
@@ -674,12 +635,12 @@ impl<'a> Parser<'a> {
         })))
     }
 
-    fn parse_use(&mut self) -> ParseResult<TopLevelExpr> {
+    fn parse_import(&mut self) -> ParseResult<TopLevelExpr> {
         let span = self.lexer.span();
 
         expect!(
             self.current()?,
-            Token::Use,
+            Token::Import,
             self.lexer.span(),
             "expected 'use'"
         );
@@ -750,7 +711,7 @@ impl<'a> Parser<'a> {
 
         // Check mod_name & import_symbols
 
-        Ok(TopLevelExpr::Use(Box::new(Use {
+        Ok(TopLevelExpr::Import(Box::new(Import {
             module: mod_name,
             imports: import_symbols,
             span: combine(&span, &self.lexer.span()),
@@ -764,10 +725,8 @@ impl<'a> Parser<'a> {
 
     fn parse_standalone_expression(&mut self) -> ParseResult<Expr> {
         match self.current()? {
-            Token::When => self.parse_when(),
             Token::If => self.parse_if(true),
             Token::While => self.parse_while(),
-            Token::Match => self.parse_match(),
             _ => {
                 let expr = self.parse_non_top_level_expression(false)?;
 
@@ -795,10 +754,8 @@ impl<'a> Parser<'a> {
     ) -> ParseResult<Expr> {
         if include_if_when_while {
             match self.current()? {
-                Token::When => self.parse_when(),
                 Token::If => self.parse_if(false),
                 Token::While => self.parse_while(),
-                Token::Match => self.parse_match(),
                 _ => self.parse_assignment(),
             }
         } else {
@@ -1039,7 +996,7 @@ impl<'a> Parser<'a> {
                     arg = None;
                 }
 
-                Token::Dot => {
+                Token::MinusGT => {
                     self.next();
                     expr = self.parse_call(Some(expr))?;
                     break;
@@ -1069,7 +1026,7 @@ impl<'a> Parser<'a> {
                     expr = self.parse_struct_init(expr)?;
                 }
 
-                Token::Colon => {
+                Token::At => {
                     if arg.is_some() {
                         throw_error!(
                             self.lexer.span(),
@@ -1081,7 +1038,7 @@ impl<'a> Parser<'a> {
                     expr = self.parse_enum_var_access(expr)?;
                 }
 
-                Token::SingleQuote => {
+                Token::Dot => {
                     if arg.is_some() {
                         throw_error!(
                             self.lexer.span(),
@@ -1170,7 +1127,7 @@ impl<'a> Parser<'a> {
 
         expect!(
             self.current()?,
-            Token::SingleQuote,
+            Token::Dot,
             self.lexer.span(),
             "expected \"'\""
         );
@@ -1212,12 +1169,7 @@ impl<'a> Parser<'a> {
             }
         }
 
-        expect!(
-            self.current()?,
-            Token::Colon,
-            self.lexer.span(),
-            "expected ':'"
-        );
+        expect!(self.current()?, Token::At, self.lexer.span(), "expected ':'");
 
         self.next();
 
@@ -1401,8 +1353,8 @@ impl<'a> Parser<'a> {
 
         self.next();
 
-        // Check for `<.`
-        if matches!(self.current, Ok(Token::LDot)) {
+        // Check for `<-`
+        if matches!(self.current, Ok(Token::LTMinus)) {
             self.next();
             args.push(self.parse_expression()?);
         }
@@ -1511,443 +1463,6 @@ impl<'a> Parser<'a> {
                 throw_error!(span, "unexpected token: '{:?}'", current);
             }
         }
-    }
-
-    fn parse_match(&mut self) -> ParseResult<Expr> {
-        let span = self.lexer.span();
-
-        expect!(
-            self.current()?,
-            Token::Match,
-            self.lexer.span(),
-            "expected 'match'"
-        );
-
-        self.next();
-
-        expect!(
-            self.current()?,
-            Token::LeftParen,
-            self.lexer.span(),
-            "expected '('"
-        );
-
-        self.next();
-
-        let expr = self.parse_expression()?;
-
-        expect!(
-            self.current()?,
-            Token::RightParen,
-            self.lexer.span(),
-            "expected ')'"
-        );
-
-        self.next();
-
-        expect!(
-            self.current()?,
-            Token::LeftBrace,
-            self.lexer.span(),
-            "expected '{'"
-        );
-
-        self.next();
-
-        let mut cases = Vec::<MatchCase>::new();
-        while !matches!(self.current, Ok(Token::RightBrace)) {
-            cases.push(self.parse_match_case()?);
-
-            if !matches!(self.current, Ok(Token::Comma)) {
-                break;
-            } else {
-                self.next();
-            }
-        }
-
-        expect!(
-            self.current()?,
-            Token::RightBrace,
-            self.lexer.span(),
-            "expected '}'"
-        );
-
-        self.next();
-
-        let span = combine(&span, &self.lexer.span());
-
-        Ok(Expr::Match(Box::new(Match {
-            expression: expr,
-            expressions: cases,
-            span: span.clone(),
-            type_: Type::Unknown(span),
-        })))
-    }
-
-    fn parse_match_case(&mut self) -> ParseResult<MatchCase> {
-        let span = self.lexer.span();
-
-        let pattern = self.parse_pattern()?;
-
-        let guard = if matches!(self.current, Ok(Token::If)) {
-            self.next();
-
-            expect!(
-                self.current()?,
-                Token::LeftParen,
-                self.lexer.span(),
-                "expected '('"
-            );
-
-            self.next();
-
-            let expr = self.parse_expression()?;
-
-            expect!(
-                self.current()?,
-                Token::RightParen,
-                self.lexer.span(),
-                "expected ')'"
-            );
-
-            self.next();
-
-            Some(expr)
-        } else {
-            None
-        };
-
-        let case_body = if matches!(self.current, Ok(Token::Then)) {
-            self.next();
-            vec![self.parse_expression()?]
-        } else {
-            self.parse_curly_body()?
-        };
-
-        Ok(MatchCase {
-            pattern,
-            guard,
-            body: case_body,
-            span: combine(&span, &self.lexer.span()),
-        })
-    }
-
-    fn parse_pattern(&mut self) -> ParseResult<Pattern> {
-        let span = self.lexer.span();
-
-        let mut pattern = match self.current()?.clone() {
-            Token::Int(value) => {
-                self.next();
-                Pattern::Int(Box::new(IntLiteral {
-                    value,
-                    span: span.clone(),
-                    type_: Type::Int(span),
-                }))
-            }
-
-            Token::Float(value) => {
-                self.next();
-                Pattern::Float(Box::new(FloatLiteral {
-                    value,
-                    span: span.clone(),
-                    type_: Type::Float(span),
-                }))
-            }
-
-            Token::Str(value) => {
-                self.next();
-                let value = self.interner.get_or_intern(value);
-                Pattern::Str(Box::new(StrLiteral {
-                    value,
-                    span: span.clone(),
-                    type_: Type::Str(span),
-                }))
-            }
-
-            Token::True => {
-                self.next();
-                Pattern::Bool(Box::new(BoolLiteral {
-                    value: true,
-                    span: span.clone(),
-                    type_: Type::Bool(span),
-                }))
-            }
-
-            Token::False => {
-                self.next();
-                Pattern::Bool(Box::new(BoolLiteral {
-                    value: false,
-                    span: span.clone(),
-                    type_: Type::Bool(span),
-                }))
-            }
-
-            Token::Underscore => {
-                self.next();
-                Pattern::Wildcard(span)
-            }
-
-            Token::LeftBrak => self.parse_list_pattern()?,
-
-            Token::Hash => self.parse_tuple_pattern()?,
-
-            Token::Ident(ident) => self.parse_ident_pattern(ident)?,
-
-            _ => {
-                throw_error!(span, "invalid pattern: {:?}", self.current()?);
-            }
-        };
-
-        let or_span = self.lexer.span();
-
-        let mut or_patterns = Vec::<Pattern>::new();
-        while matches!(self.current, Ok(Token::MatchOr)) {
-            self.next();
-            or_patterns.push(self.parse_pattern()?);
-        }
-
-        if !or_patterns.is_empty() {
-            pattern = Pattern::Or(Box::new(OrPattern {
-                patterns: or_patterns,
-                span: combine(&or_span, &self.lexer.span()),
-            }));
-        }
-
-        Ok(pattern)
-    }
-
-    fn parse_ident_pattern(&mut self, ident: String) -> ParseResult<Pattern> {
-        let span = self.lexer.span();
-
-        self.next();
-
-        match self.current()? {
-            Token::LeftBrace => self.parse_struct_pattern(span, ident),
-            Token::Colon => self.parse_enum_var_pattern(span, ident),
-            _ => Ok(Pattern::Ident(Box::new(Ident {
-                name: self.interner.get_or_intern(ident),
-                span: span.clone(),
-                type_: Type::Unknown(span),
-            }))),
-        }
-    }
-
-    fn parse_struct_pattern(
-        &mut self,
-        span: Span,
-        ident: String,
-    ) -> ParseResult<Pattern> {
-        expect!(self.current()?, Token::LeftBrace, span, "expected '{'");
-
-        self.next();
-
-        let mut field_patterns = Vec::<FieldPattern>::new();
-        while !matches!(self.current, Ok(Token::RightBrace)) {
-            field_patterns.push(self.parse_field_pattern()?);
-
-            if !matches!(self.current, Ok(Token::Comma)) {
-                break;
-            } else {
-                self.next();
-            }
-        }
-
-        expect!(
-            self.current()?,
-            Token::RightBrace,
-            self.lexer.span(),
-            "expected '}'"
-        );
-
-        self.next();
-
-        Ok(Pattern::Struct(Box::new(StructPattern {
-            source: self.interner.get_or_intern(ident),
-            fields: field_patterns,
-            span: combine(&span, &self.lexer.span()),
-        })))
-    }
-
-    fn parse_field_pattern(&mut self) -> ParseResult<FieldPattern> {
-        let span = self.lexer.span();
-
-        let Token::Ident(name) = expect!(
-            self.current()?,
-            Token::Ident(..),
-            self.lexer.span(),
-            "expected a field name"
-        ) else {
-            unreachable!()
-        };
-
-        let name = self.interner.get_or_intern(name.clone());
-
-        self.next();
-
-        let pattern = self.parse_pattern()?;
-
-        Ok(FieldPattern {
-            name,
-            pattern,
-            span: combine(&span, &self.lexer.span()),
-        })
-    }
-
-    fn parse_enum_var_pattern(
-        &mut self,
-        span: Span,
-        ident: String,
-    ) -> ParseResult<Pattern> {
-        expect!(self.current()?, Token::Colon, span, "expected ':'");
-
-        self.next();
-
-        let Token::Ident(variant) = expect!(
-            self.current()?,
-            Token::Ident(..),
-            self.lexer.span(),
-            "expected a variant name"
-        ) else {
-            unreachable!()
-        };
-
-        let variant = self.interner.get_or_intern(variant.clone());
-
-        self.next();
-
-        let span = combine(&span, &self.lexer.span());
-        let source = self.interner.get_or_intern(ident);
-
-        let enum_var_access = EnumVarAccess {
-            source,
-            variant,
-            type_: Type::Named(span.clone(), source),
-            span: span.clone(),
-        };
-
-        if matches!(self.current, Ok(Token::LeftParen)) {
-            self.next();
-
-            let mut arguments = Vec::<Pattern>::new();
-            while !matches!(self.current, Ok(Token::RightParen)) {
-                arguments.push(self.parse_pattern()?);
-
-                if !matches!(self.current, Ok(Token::Comma)) {
-                    break;
-                } else {
-                    self.next();
-                }
-            }
-
-            expect!(
-                self.current()?,
-                Token::RightParen,
-                self.lexer.span(),
-                "expected ')'"
-            );
-
-            self.next();
-
-            Ok(Pattern::Variant(Box::new(EnumVarPattern::VarInit(Box::new(
-                EnumVarInitPattern {
-                    access: enum_var_access,
-                    arguments,
-                    span: combine(&span, &self.lexer.span()),
-                },
-            )))))
-        } else {
-            Ok(Pattern::Variant(Box::new(EnumVarPattern::VarAccess(Box::new(
-                enum_var_access,
-            )))))
-        }
-    }
-
-    fn parse_tuple_pattern(&mut self) -> ParseResult<Pattern> {
-        let span = self.lexer.span();
-
-        expect!(
-            self.current()?,
-            Token::Hash,
-            self.lexer.span(),
-            "expected '#'"
-        );
-
-        self.next();
-
-        expect!(
-            self.current()?,
-            Token::LeftParen,
-            self.lexer.span(),
-            "expected '('"
-        );
-
-        self.next();
-
-        let mut values = Vec::<Pattern>::new();
-        while !matches!(self.current, Ok(Token::GT)) {
-            values.push(self.parse_pattern()?);
-
-            if !matches!(self.current, Ok(Token::Comma)) {
-                break;
-            } else {
-                self.next();
-            }
-        }
-
-        expect!(
-            self.current()?,
-            Token::RightParen,
-            self.lexer.span(),
-            "expected ')'"
-        );
-
-        self.next();
-
-        let span = combine(&span, &self.lexer.span());
-
-        if values.is_empty() {
-            throw_error!(span.clone(), "tuple must contain at least one value");
-        }
-
-        Ok(Pattern::Tuple(Box::new(TuplePattern { values, span })))
-    }
-
-    fn parse_list_pattern(&mut self) -> ParseResult<Pattern> {
-        let span = self.lexer.span();
-
-        expect!(
-            self.current()?,
-            Token::LeftBrak,
-            self.lexer.span(),
-            "expected '['"
-        );
-
-        self.next();
-
-        let mut elements = Vec::<Pattern>::new();
-        while !matches!(self.current, Ok(Token::RightBrak)) {
-            elements.push(self.parse_pattern()?);
-
-            if !matches!(self.current, Ok(Token::Comma)) {
-                break;
-            } else {
-                self.next();
-            }
-        }
-
-        expect!(
-            self.current()?,
-            Token::RightBrak,
-            self.lexer.span(),
-            "expected '}'"
-        );
-
-        self.next();
-
-        Ok(Pattern::List(Box::new(ListPattern {
-            elements,
-            span: combine(&span, &self.lexer.span()),
-        })))
     }
 
     fn parse_return(&mut self) -> ParseResult<Expr> {
@@ -2079,67 +1594,6 @@ impl<'a> Parser<'a> {
         })))
     }
 
-    fn parse_when(&mut self) -> ParseResult<Expr> {
-        let span = self.lexer.span();
-
-        expect!(
-            self.current()?,
-            Token::When,
-            self.lexer.span(),
-            "expected 'when'"
-        );
-
-        self.next();
-
-        expect!(
-            self.current()?,
-            Token::LeftParen,
-            self.lexer.span(),
-            "expected '('"
-        );
-
-        self.next();
-
-        let cond = self.parse_expression()?;
-
-        expect!(
-            self.current()?,
-            Token::RightParen,
-            self.lexer.span(),
-            "expected ')'"
-        );
-
-        self.next();
-
-        let then_body = if matches!(self.current, Ok(Token::Then)) {
-            self.next();
-            vec![self.parse_standalone_expression()?]
-        } else {
-            self.parse_curly_body()?
-        };
-
-        let else_body = if matches!(self.current, Ok(Token::Else)) {
-            self.next();
-            if matches!(self.current, Ok(Token::LeftBrace)) {
-                Some(self.parse_curly_body()?)
-            } else {
-                Some(vec![self.parse_standalone_expression()?])
-            }
-        } else {
-            None
-        };
-
-        let span = combine(&span, &self.lexer.span());
-
-        Ok(Expr::When(Box::new(When {
-            condition: cond,
-            then: then_body,
-            else_: else_body,
-            span: span.clone(),
-            type_: Type::Void(span),
-        })))
-    }
-
     fn parse_if(&mut self, standalone: bool) -> ParseResult<Expr> {
         let span = self.lexer.span();
 
@@ -2247,12 +1701,7 @@ impl<'a> Parser<'a> {
 
         let return_type = self.parse_type()?;
 
-        let body = if matches!(self.current, Ok(Token::Do)) {
-            self.next();
-            vec![self.parse_expression()?]
-        } else {
-            self.parse_curly_body()?
-        };
+        let body = self.parse_curly_body()?;
 
         let span = combine(&span, &self.lexer.span());
 
@@ -2469,64 +1918,64 @@ mod tests {
     }
 
     #[test]
-    fn use_exprs() {
+    fn import_exprs() {
         let mut interner = DefaultStringInterner::default();
 
         assert_eq!(
-            result: one_top(test_parse("use fmt;", &mut interner)),
-            expected: TopLevelExpr::Use(Box::new(Use {
+            result: one_top(test_parse("import fmt;", &mut interner)),
+            expected: TopLevelExpr::Import(Box::new(Import {
                 module: interner.get_or_intern("fmt"),
                 imports: None,
-                span: 0..8,
-                type_: Type::Void(0..3)
+                span: 0..11,
+                type_: Type::Void(0..6)
             }))
         );
 
         assert_eq!(
-            result: one_error(test_parse("use", &mut interner)),
-            expected: unexpected_end!(3..3)
+            result: one_error(test_parse("import", &mut interner)),
+            expected: unexpected_end!(6..6)
         );
 
         assert_eq!(
-            result: one_error(test_parse("use fmt", &mut interner)),
-            expected: unexpected_end!(7..7)
+            result: one_error(test_parse("import fmt", &mut interner)),
+            expected: unexpected_end!(10..10)
         );
 
         assert_eq!(
-            result: one_top(test_parse("use fmt [println, print];", &mut interner)),
-            expected: TopLevelExpr::Use(Box::new(Use {
+            result: one_top(test_parse("import fmt [println, print];", &mut interner)),
+            expected: TopLevelExpr::Import(Box::new(Import {
                 module: interner.get_or_intern("fmt"),
                 imports: Some(vec![interner.get_or_intern("println"), interner.get_or_intern("print")]),
-                span: 0..25,
-                type_: Type::Void(0..3)
+                span: 0..28,
+                type_: Type::Void(0..6)
             })),
         );
 
         assert_eq!(
-            result: one_top(test_parse("use fmt [];", &mut interner)),
-            expected: TopLevelExpr::Use(Box::new(Use {
+            result: one_top(test_parse("import fmt [];", &mut interner)),
+            expected: TopLevelExpr::Import(Box::new(Import {
                 module: interner.get_or_intern("fmt"),
                 imports: Some(vec![]),
-                span: 0..11,
-                type_: Type::Void(0..3)
+                span: 0..14,
+                type_: Type::Void(0..6)
             }))
         );
 
         assert_eq!(
-            result: one_error(test_parse("use fmt [", &mut interner)),
-            expected: unexpected_end!(9..9)
+            result: one_error(test_parse("import fmt [", &mut interner)),
+            expected: unexpected_end!(12..12)
         );
 
         assert_eq!(
-            result: one_error(test_parse("use fmt [println", &mut interner)),
-            expected: unexpected_end!(16..16)
+            result: one_error(test_parse("import fmt [println", &mut interner)),
+            expected: unexpected_end!(19..19)
         );
 
         assert_eq!(
-            result: multi_errors(test_parse("use fmt [;", &mut interner), 2),
+            result: multi_errors(test_parse("import fmt [;", &mut interner), 2),
             expected: vec![
-                parse_error!("expected an identifier", 9..10),
-                parse_error!("expected a top-level expression but found 'SemiColon'", 9..10)
+                parse_error!("expected an identifier", 12..13),
+                parse_error!("expected a top-level expression but found 'SemiColon'", 12..13)
             ]
         );
     }
@@ -2540,30 +1989,16 @@ mod tests {
         let mut interner = DefaultStringInterner::default();
 
         assert_eq!(
-            result: one_top(test_parse("enum int_option { Some(int), None }", &mut interner)),
+            result: one_top(test_parse("enum AorB { A, B }", &mut interner)),
             expected: TopLevelExpr::EnumDef(Box::new(EnumDef {
-                name: interner.get_or_intern("int_option"),
+                name: interner.get_or_intern("AorB"),
                 variants: vec![
-                    EnumVarDef {
-                        name: interner.get_or_intern("Some"),
-                        types: vec![Type::Int(23..26)],
-                        span: 18..28
-                    },
-                    EnumVarDef {
-                        name: interner.get_or_intern("None"), types: vec![], span: 29..35 }
+                    interner.get_or_intern("A"),
+                    interner.get_or_intern("B"),
                 ],
-                span: 0..35,
-                type_: Type::Unknown(0..35)
+                span: 0..18,
+                type_: Type::Unknown(0..18)
             }))
-        );
-
-        assert_eq!(
-            result: multi_errors(test_parse("enum int_option { Some(int) None }", &mut interner), 3),
-            expected: vec![
-                parse_error!("expected '}' after enum variants", 28..32),
-                parse_error!("expected a top-level expression but found 'Ident(\"None\")'", 28..32),
-                parse_error!("expected a top-level expression but found 'RightBrace'", 33..34),
-            ]
         );
 
         assert_eq!(
@@ -2663,7 +2098,7 @@ mod tests {
         );
 
         assert_eq!(
-            result: one_top(test_parse("func main() void do void;", &mut interner)),
+            result: one_top(test_parse("func main() void { void; }", &mut interner)),
             expected: TopLevelExpr::Func(Box::new(Func {
                 rec: false,
                 name: interner.get_or_intern("main"),
@@ -2672,18 +2107,18 @@ mod tests {
                     return_type: Type::Void(12..16),
                     body: vec![
                         Expr::Void(Box::new(Void {
-                            span: 20..24,
-                            type_: Type::Void(20..24)
+                            span: 19..23,
+                            type_: Type::Void(19..23)
                         }))
                     ],
-                    span: 0..25,
+                    span: 0..26,
                     type_: Type::Func(
-                        0..25,
+                        0..26,
                         vec![],
                         Box::new(Type::Void(12..16))
                     )
                 },
-                span: 0..25
+                span: 0..26
             }))
         );
 
@@ -2800,7 +2235,7 @@ mod tests {
 
         assert_eq!(
             result: exprs(test_parse(
-                "func main() void { list:Cons(123) <. list:Cons(321) <. list:Nil; Person { age 18, name \"Nobu\", other stuff }; }",
+                "func main() void { list@Cons(123) <- list@Cons(321) <- list@Nil; Person { age 18, name \"Nobu\", other stuff }; }",
                 &mut interner
             )),
             expected: vec![Expr::Call(Box::new(Call {
@@ -2886,24 +2321,24 @@ mod tests {
         let mut interner = DefaultStringInterner::default();
 
         assert_eq!(
-            result: exprs(test_parse("func main() void { person'name.length(); }", &mut interner)),
+            result: exprs(test_parse("func main() void { person.name->length(); }", &mut interner)),
             expected: vec![
                 Expr::Call(Box::new(Call {
                     callee: Expr::Ident(Box::new(Ident {
                         name: interner.get_or_intern("length"),
-                        span: 31..37,
-                        type_: Type::Unknown(31..37)
+                        span: 32..38,
+                        type_: Type::Unknown(32..38)
                     })),
                     arguments: vec![
                         Expr::StructFieldAccess(Box::new(StructFieldAccess {
                             source: interner.get_or_intern("person"),
                             field: interner.get_or_intern("name"),
-                            span: 25..31,
-                            type_: Type::Unknown(25..31)
+                            span: 25..32,
+                            type_: Type::Unknown(25..32)
                         }))
                     ],
-                    span: 37..40,
-                    type_: Type::Unknown(37..40)
+                    span: 38..41,
+                    type_: Type::Unknown(38..41)
                 }))
             ]
         );
@@ -2940,35 +2375,6 @@ mod tests {
     #[test]
     fn closure() {
         let mut interner = DefaultStringInterner::default();
-
-        assert_eq!(
-            result: exprs(test_parse("func main() void { \\(name str) str do name; }", &mut interner)),
-            expected: vec![
-                Expr::Closure(Box::new(Closure {
-                    parameters: vec![
-                        FuncParam {
-                            name: interner.get_or_intern("name"),
-                            type_: Type::Str(26..29),
-                            span: 21..30
-                        }
-                    ],
-                    return_type: Type::Str(31..34),
-                    body: vec![
-                        Expr::Ident(Box::new(Ident {
-                            name: interner.get_or_intern("name"),
-                            span: 38..42,
-                            type_: Type::Unknown(38..42)
-                        }))
-                    ],
-                    span: 19..43,
-                    type_: Type::Func(
-                        19..43,
-                        vec![Type::Str(26..29)],
-                        Box::new(Type::Str(31..34))
-                    )
-                }))
-            ]
-        );
 
         assert_eq!(
             result: exprs(test_parse("func main() void { \\(name str) str { name; }; }", &mut interner)),
@@ -3233,34 +2639,7 @@ mod tests {
         );
 
         assert_eq!(
-            result: exprs(test_parse("func main() void { if (true) then void; else void; }", &mut interner)),
-            expected: vec![
-                Expr::If(Box::new(If {
-                    condition: Expr::Bool(Box::new(BoolLiteral {
-                        value: true,
-                        span: 23..27,
-                        type_: Type::Bool(23..27)
-                    })),
-                    then: vec![
-                        Expr::Void(Box::new(Void {
-                            span: 34..38,
-                            type_: Type::Void(34..38)
-                        }))
-                    ],
-                    else_: vec![
-                        Expr::Void(Box::new(Void {
-                            span: 45..49,
-                            type_: Type::Void(45..49)
-                        }))
-                    ],
-                    span: 19..52,
-                    type_: Type::Unknown(19..52)
-                }))
-            ]
-        );
-
-        assert_eq!(
-            result: exprs(test_parse("func main() void { let a = if (true) then void; else void; }", &mut interner)),
+            result: exprs(test_parse("func main() void { let a = if (true) { void; } else { void; }; }", &mut interner)),
             expected: vec![
                 Expr::DefVar(Box::new(DefVar {
                     name: interner.get_or_intern("a"),
@@ -3272,123 +2651,21 @@ mod tests {
                         })),
                         then: vec![
                             Expr::Void(Box::new(Void {
-                                span: 42..46,
-                                type_: Type::Void(42..46)
+                                span: 39..43,
+                                type_: Type::Void(39..43)
                             }))
                         ],
                         else_: vec![
                             Expr::Void(Box::new(Void {
-                                span: 53..57,
-                                type_: Type::Void(53..57)
+                                span: 54..58,
+                                type_: Type::Void(54..58)
                             }))
                         ],
-                        span: 27..58,
-                        type_: Type::Unknown(27..58)
+                        span: 27..62,
+                        type_: Type::Unknown(27..62)
                     })),
-                    span: 19..58,
+                    span: 19..62,
                     type_: Type::Named(23..24, interner.get_or_intern("a"))
-                }))
-            ]
-        );
-    }
-
-    #[test]
-    fn when_exprs() {
-        let mut interner = DefaultStringInterner::default();
-
-        assert_eq!(
-            result: exprs(test_parse("func main() void { when (true) { void; } }", &mut interner)),
-            expected: vec![
-                Expr::When(Box::new(When {
-                    condition: Expr::Bool(Box::new(BoolLiteral {
-                        value: true,
-                        span: 25..29,
-                        type_: Type::Bool(25..29)
-                    })),
-                    then: vec![
-                        Expr::Void(Box::new(Void {
-                            span: 33..37,
-                            type_: Type::Void(33..37)
-                        }))
-                    ],
-                    else_: None,
-                    span: 19..42,
-                    type_: Type::Void(19..42)
-                }))
-            ]
-        );
-        assert_eq!(
-            result: exprs(test_parse("func main() void { when (true) then void; }", &mut interner)),
-            expected: vec![
-                Expr::When(Box::new(When {
-                    condition: Expr::Bool(Box::new(BoolLiteral {
-                        value: true,
-                        span: 25..29,
-                        type_: Type::Bool(25..29)
-                    })),
-                    then: vec![
-                        Expr::Void(Box::new(Void {
-                            span: 36..40,
-                            type_: Type::Void(36..40)
-                        }))
-                    ],
-                    else_: None,
-                    span: 19..43,
-                    type_: Type::Void(19..43)
-                }))
-            ]
-        );
-
-        assert_eq!(
-            result: exprs(test_parse("func main() void { when (true) { void; } else { void; } }", &mut interner)),
-            expected: vec![
-                Expr::When(Box::new(When {
-                    condition: Expr::Bool(Box::new(BoolLiteral {
-                        value: true,
-                        span: 25..29,
-                        type_: Type::Bool(25..29)
-                    })),
-                    then: vec![
-                        Expr::Void(Box::new(Void {
-                            span: 33..37,
-                            type_: Type::Void(33..37)
-                        }))
-                    ],
-                    else_: Some(vec![
-                        Expr::Void(Box::new(Void {
-                            span: 48..52,
-                            type_: Type::Void(48..52)
-                        }))
-                    ]),
-                    span: 19..57,
-                    type_: Type::Void(19..57)
-                }))
-            ]
-        );
-
-        assert_eq!(
-            result: exprs(test_parse("func main() void { when (true) then void; else void; }", &mut interner)),
-            expected: vec![
-                Expr::When(Box::new(When {
-                    condition: Expr::Bool(Box::new(BoolLiteral {
-                        value: true,
-                        span: 25..29,
-                        type_: Type::Bool(25..29)
-                    })),
-                    then: vec![
-                        Expr::Void(Box::new(Void {
-                            span: 36..40,
-                            type_: Type::Void(36..40)
-                        }))
-                    ],
-                    else_: Some(vec![
-                        Expr::Void(Box::new(Void {
-                            span: 47..51,
-                            type_: Type::Void(47..51)
-                        }))
-                    ]),
-                    span: 19..54,
-                    type_: Type::Void(19..54)
                 }))
             ]
         );
@@ -3447,289 +2724,6 @@ mod tests {
                     })),
                     span: 39..50
                 }))
-            ]
-        );
-    }
-
-    #[test]
-    fn match_exprs() {
-        let mut interner = DefaultStringInterner::default();
-
-        assert_eq!(
-            result: exprs(test_parse(
-r#"func main() void {
-    match (#(n % 3, n % 5)) {
-        #(0, 0) then "fizz buzz",
-        #(0, _) then "fizz",
-        #(_, 0) { "buzz"; },
-        _ { n.to_str(); }
-    }
-}"#,
-            &mut interner)),
-            expected: vec![
-                Expr::Match(Box::new(Match {
-                    expression: Expr::Tuple(Box::new(Tuple {
-                        values: vec![
-                            Expr::Binary(Box::new(Binary {
-                                lhs: Expr::Ident(Box::new(Ident {
-                                    name: interner.get_or_intern("n"),
-                                    span: 32..33,
-                                    type_: Type::Unknown(32..33)
-                                })),
-                                rhs: Expr::Int(Box::new(IntLiteral {
-                                    value: 3,
-                                    span: 36..37,
-                                    type_: Type::Int(36..37)
-                                })),
-                                operator: BinaryOp {
-                                    kind: BinaryOpKind::Rem,
-                                    span: 34..35
-                                },
-                                span: 32..37,
-                                type_: Type::Unknown(34..35)
-                            })),
-                            Expr::Binary(Box::new(Binary {
-                                lhs: Expr::Ident(Box::new(Ident {
-                                    name: interner.get_or_intern("n"),
-                                    span: 39..40,
-                                    type_: Type::Unknown(39..40)
-                                })),
-                                rhs: Expr::Int(Box::new(IntLiteral {
-                                    value: 5,
-                                    span: 43..44,
-                                    type_: Type::Int(43..44)
-                                })),
-                                operator: BinaryOp {
-                                    kind: BinaryOpKind::Rem,
-                                    span: 41..42
-                                },
-                                span: 39..44,
-                                type_: Type::Unknown(41..42)
-                            }))
-                        ],
-                        span: 30..46,
-                        type_: Type::Unknown(30..46)
-                    })),
-                    expressions: vec![
-                        MatchCase {
-                            pattern: Pattern::Tuple(Box::new(TuplePattern {
-                                values: vec![
-                                    Pattern::Int(Box::new(IntLiteral {
-                                        value: 0,
-                                        span: 59..60,
-                                        type_: Type::Int(59..60)
-                                    })),
-                                    Pattern::Int(Box::new(IntLiteral {
-                                        value: 0,
-                                        span: 62..63,
-                                        type_: Type::Int(62..63)
-                                    }))
-                                ],
-                                span: 57..69
-                            })),
-                            guard: None,
-                            body: vec![
-                                Expr::Str(Box::new(StrLiteral {
-                                    value: interner.get_or_intern("fizz buzz"),
-                                    span: 70..81,
-                                    type_: Type::Str(70..81)
-                                }))
-                            ],
-                            span: 57..82
-                        },
-                        MatchCase {
-                            pattern: Pattern::Tuple(Box::new(TuplePattern {
-                                values: vec![
-                                    Pattern::Int(Box::new(IntLiteral {
-                                        value: 0,
-                                        span: 93..94,
-                                        type_: Type::Int(93..94)
-                                    })),
-                                    Pattern::Wildcard(96..97)
-                                ],
-                                span: 91..103
-                            })),
-                            guard: None,
-                            body: vec![
-                                Expr::Str(Box::new(StrLiteral {
-                                    value: interner.get_or_intern("fizz"),
-                                    span: 104..110,
-                                    type_: Type::Str(104..110)
-                                }))
-                            ],
-                            span: 91..111
-                        },
-                        MatchCase {
-                            pattern: Pattern::Tuple(Box::new(TuplePattern {
-                                values: vec![
-                                    Pattern::Wildcard(122..123),
-                                    Pattern::Int(Box::new(IntLiteral {
-                                        value: 0,
-                                        span: 125..126,
-                                        type_: Type::Int(125..126)
-                                    }))
-                                ],
-                                span: 120..129
-                            })),
-                            guard: None,
-                            body: vec![
-                                Expr::Str(Box::new(StrLiteral {
-                                    value: interner.get_or_intern("buzz"),
-                                    span: 130..136,
-                                    type_: Type::Str(130..136)
-                                }))
-                            ],
-                            span: 120..140
-                        },
-                        MatchCase {
-                            pattern: Pattern::Wildcard(149..150),
-                            guard: None,
-                            body: vec![
-                                Expr::Call(Box::new(Call {
-                                    callee: Expr::Ident(Box::new(Ident {
-                                        name: interner.get_or_intern("to_str"),
-                                        span: 155..161,
-                                        type_: Type::Unknown(155..161)
-                                    })),
-                                    arguments: vec![
-                                        Expr::Ident(Box::new(Ident {
-                                            name: interner.get_or_intern("n"),
-                                            span: 153..154,
-                                            type_: Type::Unknown(153..154,)
-                                        }))
-                                    ],
-                                    span: 161..164,
-                                    type_: Type::Unknown(161..164)
-                                }))
-                            ],
-                            span: 149..172
-                        }
-                    ],
-                    span: 23..174,
-                    type_: Type::Unknown(23..174)
-                })),
-            ]
-        );
-
-        assert_eq!(
-            result: exprs(test_parse(
-r#"func main() void {
-    match (void) {}
-}
-"#,
-            &mut interner)),
-            expected: vec![
-                Expr::Match(Box::new(Match {
-                    expression: Expr::Void(Box::new(Void {
-                        span: 30..34,
-                        type_: Type::Void(30..34)
-                    })),
-                    expressions: vec![],
-                    span: 23..40,
-                    type_: Type::Unknown(23..40)
-                }))
-            ]
-        );
-    }
-
-    #[test]
-    fn match_expr_guards() {
-        let mut interner = DefaultStringInterner::default();
-
-        assert_eq!(
-            result: exprs(test_parse(
-r#"func main() void {
-    match (void) {
-        n if (n != 0) { void; },
-        [a, b] if (a == b) { void; }
-    }
-}"#,
-            &mut interner)),
-            expected: vec![
-                Expr::Match(Box::new(Match {
-                    expression: Expr::Void(Box::new(Void {
-                        span: 30..34,
-                        type_: Type::Void(30..34)
-                    })),
-                    expressions: vec![
-                        MatchCase {
-                            pattern: Pattern::Ident(Box::new(Ident {
-                                name: interner.get_or_intern("n"),
-                                span: 46..47,
-                                type_: Type::Unknown(46..47)
-                            })),
-                            guard: Some(Expr::Binary(Box::new(Binary {
-                                lhs: Expr::Ident(Box::new(Ident {
-                                    name: interner.get_or_intern("n"),
-                                    span: 52..53,
-                                    type_: Type::Unknown(52..53)
-                                })),
-                                rhs: Expr::Int(Box::new(IntLiteral {
-                                    value: 0,
-                                    span: 57..58,
-                                    type_: Type::Int(57..58)
-                                })),
-                                operator: BinaryOp {
-                                    kind: BinaryOpKind::NEq,
-                                    span: 54..56
-                                },
-                                span: 52..58,
-                                type_: Type::Bool(54..56)
-                            }))),
-                            body: vec![
-                                Expr::Void(Box::new(Void {
-                                    span: 62..66,
-                                    type_: Type::Void(62..66)
-                                }))
-                            ],
-                            span: 46..70
-                        },
-                        MatchCase {
-                            pattern: Pattern::List(Box::new(ListPattern {
-                                elements: vec![
-                                    Pattern::Ident(Box::new(Ident {
-                                        name: interner.get_or_intern("a"),
-                                        span: 80..81,
-                                        type_: Type::Unknown(80..81)
-                                    })),
-                                    Pattern::Ident(Box::new(Ident {
-                                        name: interner.get_or_intern("b"),
-                                        span: 83..84,
-                                        type_: Type::Unknown(83..84)
-                                    }))
-                                ],
-                                span: 79..88
-                            })),
-                            guard: Some(Expr::Binary(Box::new(Binary {
-                                lhs: Expr::Ident(Box::new(Ident {
-                                    name: interner.get_or_intern("a"),
-                                    span: 90..91,
-                                    type_: Type::Unknown(90..91)
-                                })),
-                                rhs: Expr::Ident(Box::new(Ident {
-                                    name: interner.get_or_intern("b"),
-                                    span: 95..96,
-                                    type_: Type::Unknown(95..96)
-                                })),
-                                operator: BinaryOp {
-                                    kind: BinaryOpKind::Eq,
-                                    span: 92..94
-                                },
-                                span: 90..96,
-                                type_: Type::Bool(92..94)
-                            }))),
-                            body: vec![
-                                Expr::Void(Box::new(Void {
-                                    span: 100..104,
-                                    type_: Type::Void(100..104)
-                                }))
-                            ],
-                            span: 79..113
-                        }
-                    ],
-                    span: 23..115,
-                    type_: Type::Unknown(23..115)
-                })),
             ]
         );
     }
